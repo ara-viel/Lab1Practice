@@ -13,12 +13,15 @@ app.use(express.json());
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dti-price-monitoring';
+const DB_NAME = process.env.DB_NAME || 'dtiApp';
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  dbName: DB_NAME,
 }).then(() => {
   console.log('✅ Connected to MongoDB');
+  console.log(`📚 Using database: ${mongoose.connection.name}`);
 }).catch(err => {
   console.error('❌ MongoDB connection error:', err);
 });
