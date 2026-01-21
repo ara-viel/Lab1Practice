@@ -192,7 +192,7 @@ function App() {
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "analysis" && <Analysis prevailingReport={prevailingReport} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
-          {activeTab === "comparative" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "comparative" && <ComparativeAnalysis prices={prices} />}
         </div>
       </div>
 

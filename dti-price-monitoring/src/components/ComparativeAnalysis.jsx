@@ -5,16 +5,21 @@ export default function ComparativeAnalysis({ prices }) {
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
 
+  // Handle null or undefined prices
+  const pricesArray = Array.isArray(prices) ? prices : [];
+
   // Get unique commodities and stores for filters
-  const uniqueCommodities = [...new Set(prices.map(p => p.commodity))];
-  const uniqueStores = [...new Set(prices.map(p => p.store))];
+  const uniqueCommodities = [...new Set(pricesArray.map(p => p.commodity).filter(Boolean))];
+  const uniqueStores = [...new Set(pricesArray.map(p => p.store).filter(Boolean))];
 
   // Group data by commodity and store
   const getComparativeData = () => {
     // Group by commodity and store
     const grouped = {};
     
-    prices.forEach(item => {
+    pricesArray.forEach(item => {
+      if (!item || !item.commodity || !item.store) return;
+      
       const key = `${item.commodity}_${item.store}`;
       if (!grouped[key]) {
         grouped[key] = {
@@ -25,9 +30,9 @@ export default function ComparativeAnalysis({ prices }) {
         };
       }
       grouped[key].prices.push({
-        price: item.price,
-        prevPrice: item.prevPrice || item.price,
-        timestamp: new Date(item.timestamp)
+        price: item.price || 0,
+        prevPrice: item.prevPrice || item.price || 0,
+        timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
       });
     });
 
@@ -35,8 +40,8 @@ export default function ComparativeAnalysis({ prices }) {
     const results = Object.values(grouped).map(group => {
       // Sort by timestamp to get latest and previous
       const sortedPrices = group.prices.sort((a, b) => b.timestamp - a.timestamp);
-      const latestPrice = sortedPrices[0].price;
-      const previousPrice = sortedPrices[0].prevPrice || (sortedPrices[1]?.price || latestPrice);
+      const latestPrice = sortedPrices[0]?.price || 0;
+      const previousPrice = sortedPrices[0]?.prevPrice || (sortedPrices[1]?.price || latestPrice) || 0;
       
       const priceChange = latestPrice - previousPrice;
       const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
@@ -177,10 +182,10 @@ export default function ComparativeAnalysis({ prices }) {
                         <div style={{ color: "#64748b", fontSize: "0.9rem" }}>{item.municipality}</div>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ color: "#64748b" }}>₱{item.previousPrice.toFixed(2)}</span>
+                        <span style={{ color: "#64748b" }}>₱{(item.previousPrice || 0).toFixed(2)}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: "1.05rem", fontWeight: "600" }}>₱{item.currentPrice.toFixed(2)}</span>
+                        <span style={{ fontSize: "1.05rem", fontWeight: "600" }}>₱{(item.currentPrice || 0).toFixed(2)}</span>
                       </td>
                       <td style={tdStyle}>
                         <div style={{ 
@@ -195,7 +200,7 @@ export default function ComparativeAnalysis({ prices }) {
                           {isStable && <Minus size={16} />}
                           <span>
                             {item.priceChange > 0 ? "+" : ""}
-                            ₱{item.priceChange.toFixed(2)}
+                            ₱{(item.priceChange || 0).toFixed(2)}
                           </span>
                         </div>
                       </td>
@@ -205,7 +210,7 @@ export default function ComparativeAnalysis({ prices }) {
                           fontWeight: "600"
                         }}>
                           {item.percentChange > 0 ? "+" : ""}
-                          {item.percentChange.toFixed(1)}%
+                          {(item.percentChange || 0).toFixed(1)}%
                         </span>
                       </td>
                       <td style={tdStyle}>
