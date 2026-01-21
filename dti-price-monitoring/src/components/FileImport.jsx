@@ -20,7 +20,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
       setImportedData(data);
       setMessage({
         type: "success",
-        text: `Successfully parsed ${data.length} records from ${file.name}. Click "Confirm Import" to add them to the database.`
+        text: `Successfully loaded ${data.length} records from ${file.name}.`
       });
     } catch (error) {
       setMessage({
@@ -38,11 +38,10 @@ export default function FileImport({ onImportSuccess, onClose }) {
 
     setLoading(true);
     try {
-      // Call the callback with imported data
       await onImportSuccess(importedData);
       setMessage({
         type: "success",
-        text: "All records have been added successfully!"
+        text: `${importedData.length} records imported successfully!`
       });
       
       // Close after 2 seconds
@@ -83,7 +82,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
 
   return (
     <div style={modalStyle}>
-      <div style={dialogStyle}>
+    <div style={dialogStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
           <h2 style={{ margin: 0, fontSize: "1.3rem", color: "#0f172a", fontWeight: "700" }}>
             Import Price Data
@@ -144,15 +143,15 @@ export default function FileImport({ onImportSuccess, onClose }) {
             padding: "12px",
             borderRadius: "8px",
             marginBottom: "20px",
-            background: message.type === "success" ? "#dcfce7" : "#fee2e2",
-            border: `1px solid ${message.type === "success" ? "#86efac" : "#fca5a5"}`
+            background: message.type === "success" ? "#dcfce7" : message.type === "info" ? "#dbeafe" : "#fee2e2",
+            border: `1px solid ${message.type === "success" ? "#86efac" : message.type === "info" ? "#bfdbfe" : "#fca5a5"}`
           }}>
             {message.type === "success" ? (
               <CheckCircle size={20} color="#16a34a" style={{ flexShrink: 0 }} />
             ) : (
-              <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0 }} />
+              <AlertCircle size={20} color={message.type === "info" ? "#0284c7" : "#dc2626"} style={{ flexShrink: 0 }} />
             )}
-            <div style={{ color: message.type === "success" ? "#16a34a" : "#dc2626", fontSize: "0.9rem" }}>
+            <div style={{ color: message.type === "success" ? "#16a34a" : message.type === "info" ? "#0284c7" : "#dc2626", fontSize: "0.9rem" }}>
               {message.text}
             </div>
           </div>
@@ -212,7 +211,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+      </div>
   );
 }
 
@@ -225,6 +224,21 @@ function PreviewTable({ data }) {
   const columns = getOrderedColumns(data);
   const previewData = data.slice(0, 5);
 
+  // Color mapping for each column
+  const getColumnColor = (col) => {
+    const colorMap = {
+      'brand': '#3b82f6',
+      'commodity': '#22c55e',
+      'month': '#1e3a8a',
+      'price': '#06b6d4',
+      'size': '#eab308',
+      'store': '#f59e0b',
+      'variant': '#d97706',
+      'years': '#16a34a'
+    };
+    return colorMap[col.toLowerCase()] || '#64748b';
+  };
+
   return (
     <table style={{
       width: "100%",
@@ -232,19 +246,22 @@ function PreviewTable({ data }) {
       borderCollapse: "collapse"
     }}>
       <thead>
-        <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+        <tr>
           {columns.map((col) => (
             <th 
               key={col}
               style={{
                 textAlign: "left",
-                padding: "6px",
-                color: "#64748b",
-                fontWeight: "600",
-                fontSize: "0.75rem"
+                padding: "8px",
+                color: "white",
+                fontWeight: "700",
+                fontSize: "0.75rem",
+                textTransform: "uppercase",
+                backgroundColor: getColumnColor(col),
+                borderRight: "1px solid rgba(255,255,255,0.3)"
               }}
             >
-              {formatColumnName(col)}
+              {col.toUpperCase()}
             </th>
           ))}
         </tr>

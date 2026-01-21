@@ -14,9 +14,15 @@ export const parseCSV = (file) => {
           // Convert all fields, keeping original names and trying to parse numbers
           const converted = {};
           Object.entries(row).forEach(([key, value]) => {
-            // Try to parse as number, otherwise keep as string
-            const numValue = parseFloat(value);
-            converted[key.trim()] = !isNaN(numValue) && value.trim() !== '' ? numValue : value;
+            const keyLower = key.trim().toLowerCase();
+            // Keep size, brand, variant, store, commodity, month as strings always
+            if (['size', 'brand', 'variant', 'store', 'commodity', 'month', 'years'].includes(keyLower)) {
+              converted[key.trim()] = String(value || '').trim();
+            } else {
+              // Try to parse as number for price field
+              const numValue = parseFloat(value);
+              converted[key.trim()] = !isNaN(numValue) && String(value).trim() !== '' ? numValue : value;
+            }
           });
           return converted;
         }).filter(item => Object.keys(item).length > 0 && Object.values(item).some(v => v !== ''));
@@ -47,9 +53,15 @@ export const parseXLSX = (file) => {
           // Convert all fields, keeping original names and trying to parse numbers
           const converted = {};
           Object.entries(row).forEach(([key, value]) => {
-            // Try to parse as number, otherwise keep as string
-            const numValue = parseFloat(value);
-            converted[key.trim()] = !isNaN(numValue) && String(value).trim() !== '' ? numValue : value;
+            const keyLower = key.trim().toLowerCase();
+            // Keep size, brand, variant, store, commodity, month as strings always
+            if (['size', 'brand', 'variant', 'store', 'commodity', 'month', 'years'].includes(keyLower)) {
+              converted[key.trim()] = String(value || '').trim();
+            } else {
+              // Try to parse as number for price field
+              const numValue = parseFloat(value);
+              converted[key.trim()] = !isNaN(numValue) && String(value).trim() !== '' ? numValue : value;
+            }
           });
           return converted;
         }).filter(item => Object.keys(item).length > 0 && Object.values(item).some(v => v !== ''));

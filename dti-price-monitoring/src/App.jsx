@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { addPriceData, getPriceData } from './services/priceService.js';
+import { addPriceData, getPriceData, deletePriceData, updatePriceData } from './services/priceService.js';
 import Dashboard from './components/Dashboard.jsx';
 import Monitoring from './components/Monitoring.jsx';
 import Inquiry from "./components/Inquiry.jsx";
-import Analysis from './components/Analysis.jsx';
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
+import DataManagement from './components/DataManagement.jsx';
 // Optional: npm install lucide-react
-import { LayoutDashboard, Activity, FileSearch, Menu as MenuIcon, Upload } from 'lucide-react';
+import { LayoutDashboard, Activity, FileSearch, Menu as MenuIcon, Upload, Database } from 'lucide-react';
 
 function App() {
   const [prices, setPrices] = useState([]);
@@ -43,15 +43,45 @@ function App() {
   const handleImportSuccess = async (importedData) => {
     // Add each imported record to the database
     for (const record of importedData) {
+      // Normalize keys to lowercase to handle case-insensitive imports
+      const normalizedRecord = {};
+      Object.keys(record).forEach(key => {
+        normalizedRecord[key.toLowerCase()] = record[key];
+      });
+      
       await addPriceData({
-        ...record,
-        price: Number(record.price),
-        prevPrice: Number(record.prevPrice),
-        srp: Number(record.srp),
-        timestamp: record.timestamp || new Date().toISOString()
+        brand: normalizedRecord.brand || '',
+        commodity: normalizedRecord.commodity || 'Unknown',
+        month: normalizedRecord.month || '',
+        price: Number(normalizedRecord.price) || 0,
+        size: normalizedRecord.size || '',
+        store: normalizedRecord.store || '',
+        variant: normalizedRecord.variant || '',
+        years: normalizedRecord.years || new Date().getFullYear().toString(),
+        timestamp: normalizedRecord.timestamp || new Date().toISOString()
       });
     }
     loadData(); // Reload all data
+  };
+
+  const handleDeleteData = async (id) => {
+    try {
+      await deletePriceData(id);
+      loadData();
+    } catch (error) {
+      console.error("Error deleting data:", error);
+      alert("Failed to delete record");
+    }
+  };
+
+  const handleUpdateData = async (id, updatedData) => {
+    try {
+      await updatePriceData(id, updatedData);
+      loadData();
+    } catch (error) {
+      console.error("Error updating data:", error);
+      alert("Failed to update record");
+    }
   };
 
   // --- PREVAILING PRICE CALCULATION ---
@@ -90,9 +120,9 @@ function App() {
   const tabLabels = {
     dashboard: "Dashboard",
     monitoring: "Monitoring",
-    analysis: "Price Analysis",
+    comparativepriceanalysis: "Comparative Price Analysis",
     inquiry: "Letter of Inquiry",
-    comparative: "Comparative Analysis"
+    dataManagement: "Data Management"
   };
 
   // --- MODERN STYLES ---
@@ -150,14 +180,14 @@ function App() {
           <button style={navItemStyle(activeTab === "monitoring")} onClick={() => setActiveTab("monitoring")}>
             <Activity size={18} /> Monitoring
           </button>
-          <button style={navItemStyle(activeTab === "analysis")} onClick={() => setActiveTab("analysis")}>
-            <FileSearch size={18} /> Price Analysis
+          <button style={navItemStyle(activeTab === "comparative price analysis")} onClick={() => setActiveTab("comparative price analysis")}>
+            <FileSearch size={18} /> Comparative Price Analysis
           </button>
           <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
             <FileSearch size={18} /> Letter of Inquiry
           </button>
-          <button style={navItemStyle(activeTab === "comparative")} onClick={() => setActiveTab("comparative")}>
-            <FileSearch size={18} /> Comparative Analysis
+          <button style={navItemStyle(activeTab === "dataManagement")} onClick={() => setActiveTab("dataManagement")}>
+            <Database size={18} /> Data Management
           </button>
         </div>
 
@@ -168,32 +198,29 @@ function App() {
 
       {/* MAIN CONTENT */}
       <div style={contentStyle}>
-        <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <header style={{ marginBottom: "32px" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#0f172a", fontWeight: "800" }}>
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
             </h1>
             <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Welcome back, Monitoring Officer</p>
           </div>
-          <div style={{ display: "flex", gap: "12px" }}>
-             <button 
-               style={secondaryButtonStyle}
-               onClick={() => setShowImport(true)}
-             >
-               <Upload size={16} style={{ display: "inline", marginRight: "6px" }} />
-               Import Data
-             </button>
-             <button style={primaryButtonStyle} onClick={() => setActiveTab("monitoring")}>+ New Entry</button>
-          </div>
         </header>
 
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
-          {activeTab === "analysis" && <Analysis prevailingReport={prevailingReport} />}
-
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
-          {activeTab === "comparative" && <ComparativeAnalysis prices={prices} />}
+          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "dataManagement" && (
+            <DataManagement 
+              prices={prices} 
+              onAddData={addPriceData}
+              onDeleteData={handleDeleteData}
+              onUpdateData={handleUpdateData}
+              onImportClick={() => setShowImport(true)}
+            />
+          )}
         </div>
       </div>
 

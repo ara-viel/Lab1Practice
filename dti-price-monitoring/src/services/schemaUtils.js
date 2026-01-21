@@ -25,7 +25,8 @@ export const getDynamicColumns = (data) => {
  */
 export const getOrderedColumns = (data) => {
   const allColumns = getDynamicColumns(data);
-  const preferredOrder = ['commodity', 'store', 'municipality', 'price', 'prevPrice', 'srp', 'timestamp'];
+  // New schema order: BRAND, COMMODITY, MONTH, PRICE, SIZE, STORE, VARIANT, YEARS
+  const preferredOrder = ['brand', 'commodity', 'month', 'price', 'size', 'store', 'variant', 'years', 'timestamp'];
   
   // Sort with preferred order first, then rest alphabetically
   const ordered = [];

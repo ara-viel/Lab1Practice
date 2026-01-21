@@ -1,0 +1,182 @@
+/* Delete Confirmation Modal Styles */
+.dcm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: dcm-fade-in 0.2s ease;
+}
+
+@keyframes dcm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dcm-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 450px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: dcm-slide-up 0.3s ease;
+}
+
+@keyframes dcm-slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.dcm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fef2f2;
+}
+
+.dcm-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dcm-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dcm-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.dcm-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dcm-content {
+  padding: 24px;
+}
+
+.dcm-message {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.dcm-message strong {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.dcm-warning {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.dcm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dcm-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dcm-btn-cancel {
+  background: white;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.dcm-btn-cancel:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.dcm-btn-delete {
+  background: #ef4444;
+  color: white;
+}
+
+.dcm-btn-delete:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+}
+
+.dcm-btn-delete:active {
+  transform: translateY(0);
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .dcm-modal {
+    max-width: 95%;
+  }
+
+  .dcm-header {
+    padding: 20px;
+  }
+
+  .dcm-content {
+    padding: 20px;
+  }
+
+  .dcm-footer {
+    padding: 16px 20px;
+  }
+
+  .dcm-btn {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+}

@@ -45,4 +45,21 @@ export const deletePriceData = async (id) => {
   }
 };
 
-export default { addPriceData, getPriceData, deletePriceData };
+// Function to Update a Record
+export const updatePriceData = async (id, data) => {
+  try {
+    const response = await fetch(`${API_URL}/prices/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Failed to update data');
+    console.log("✅ Data updated in MongoDB");
+    return await response.json();
+  } catch (e) {
+    console.error("❌ Error updating document: ", e);
+    throw e;
+  }
+};
+
+export default { addPriceData, getPriceData, deletePriceData, updatePriceData };

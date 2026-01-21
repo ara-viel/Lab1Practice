@@ -26,15 +26,17 @@ mongoose.connect(MONGODB_URI, {
   console.error('❌ MongoDB connection error:', err);
 });
 
-// Price Schema
+// Price Schema (BRAND, COMMODITY, MONTH, PRICE, SIZE, STORE, VARIANT, YEARS)
 const priceSchema = new mongoose.Schema({
-  commodity: String,
-  store: String,
-  municipality: String,
-  price: Number,
-  prevPrice: Number,
-  srp: Number,
-  timestamp: Date,
+  brand: { type: String, default: "", trim: true },
+  commodity: { type: String, required: true, trim: true },
+  month: { type: String, default: "", trim: true },
+  price: { type: Number, required: true, default: 0 },
+  size: { type: String, default: "", trim: true },
+  store: { type: String, default: "", trim: true },
+  variant: { type: String, default: "", trim: true },
+  years: { type: String, default: "", trim: true },
+  timestamp: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 const PriceData = mongoose.model('PriceData', priceSchema);
@@ -53,9 +55,39 @@ app.get('/api/prices', async (req, res) => {
 // Add new price data
 app.post('/api/prices', async (req, res) => {
   try {
-    const newPrice = new PriceData(req.body);
+    const payload = { ...req.body };
+    // Ensure required fields have defaults
+    if (!payload.commodity) payload.commodity = 'Unknown';
+    if (typeof payload.price !== 'number' || payload.price === null) payload.price = 0;
+    if (!payload.brand) payload.brand = '';
+    if (!payload.month) payload.month = '';
+    if (!payload.years) payload.years = new Date().getFullYear().toString();
+    if (!payload.size) payload.size = '';
+    if (!payload.store) payload.store = '';
+    if (!payload.variant) payload.variant = '';
+    if (!payload.timestamp) {
+      payload.timestamp = new Date();
+    }
+    const newPrice = new PriceData(payload);
     await newPrice.save();
     res.status(201).json(newPrice);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update price data
+app.put('/api/prices/:id', async (req, res) => {
+  try {
+    const update = { ...req.body };
+    if (!update.timestamp) {
+      update.timestamp = new Date();
+    }
+    const updated = await PriceData.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!updated) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+    res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -66,6 +98,48 @@ app.delete('/api/prices/:id', async (req, res) => {
   try {
     await PriceData.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Migration endpoint - update old schema to new schema
+app.post('/api/migrate', async (req, res) => {
+  try {
+    const collection = mongoose.connection.collection('pricedatas');
+    const currentYear = new Date().getFullYear();
+    const defaultYear = currentYear > 2025 ? currentYear.toString() : '2025';
+    
+    const result = await collection.updateMany(
+      {},
+      {
+        $set: {
+          brand: { $ifNull: ['$brand', ''] },
+          commodity: { $ifNull: ['$commodity', 'Unknown'] },
+          month: { $ifNull: ['$month', ''] },
+          price: { $ifNull: ['$price', 0] },
+          size: { $ifNull: ['$size', ''] },
+          store: { $ifNull: ['$store', ''] },
+          variant: { $ifNull: ['$variant', ''] },
+          years: { $ifNull: ['$years', defaultYear] },
+        },
+        $unset: {
+          prevPrice: '',
+          municipality: '',
+          srp: ''
+        }
+      }
+    );
+
+    res.json({
+      message: 'Migration completed',
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+      summary: {
+        added: ['brand', 'commodity', 'month', 'price', 'size', 'store', 'variant', 'years'],
+        removed: ['prevPrice', 'municipality', 'srp']
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
