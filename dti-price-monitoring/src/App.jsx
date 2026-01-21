@@ -7,7 +7,11 @@ import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
 import DataManagement from './components/DataManagement.jsx';
 // Optional: npm install lucide-react
+<<<<<<< HEAD
 import { LayoutDashboard, Activity, FileSearch, Menu as MenuIcon, Upload, Database } from 'lucide-react';
+=======
+import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload } from 'lucide-react';
+>>>>>>> d71ccb5363a8047dfc7c2a340bd201039dd082b1
 
 function App() {
   const [prices, setPrices] = useState([]);
@@ -184,10 +188,15 @@ function App() {
             <FileSearch size={18} /> Comparative Price Analysis
           </button>
           <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
-            <FileSearch size={18} /> Letter of Inquiry
+            <FileText size={18} /> Letter of Inquiry
           </button>
+<<<<<<< HEAD
           <button style={navItemStyle(activeTab === "dataManagement")} onClick={() => setActiveTab("dataManagement")}>
             <Database size={18} /> Data Management
+=======
+          <button style={navItemStyle(activeTab === "comparative")} onClick={() => setActiveTab("comparative")}>
+            <BarChart2 size={18} /> Comparative Analysis
+>>>>>>> d71ccb5363a8047dfc7c2a340bd201039dd082b1
           </button>
         </div>
 
@@ -201,7 +210,7 @@ function App() {
         <header style={{ marginBottom: "32px" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#0f172a", fontWeight: "800" }}>
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              {tabLabels[activeTab] || ""}
             </h1>
             <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Welcome back, Monitoring Officer</p>
           </div>
@@ -210,6 +219,10 @@ function App() {
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
+<<<<<<< HEAD
+=======
+          {activeTab === "analysis" && <Analysis prevailingReport={prevailingReport} />}
+>>>>>>> d71ccb5363a8047dfc7c2a340bd201039dd082b1
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
           {activeTab === "dataManagement" && (
