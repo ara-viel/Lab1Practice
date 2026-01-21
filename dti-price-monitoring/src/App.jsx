@@ -4,16 +4,10 @@ import Dashboard from './components/Dashboard.jsx';
 import Monitoring from './components/Monitoring.jsx';
 import Inquiry from "./components/Inquiry.jsx";
 import Analysis from './components/Analysis.jsx';
-<<<<<<< HEAD
-=======
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
-<<<<<<< HEAD
 import FileImport from './components/FileImport.jsx';
-=======
->>>>>>> 6f6d8a15ce4bc9741452519e1e8c394528d90b2e
->>>>>>> 135079860c17bf4b6e84224f3bd6771844d38c1d
 // Optional: npm install lucide-react
-import { LayoutDashboard, Activity, FileSearch, Menu as MenuIcon, Upload } from 'lucide-react';
+import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload } from 'lucide-react';
 
 function App() {
   const [prices, setPrices] = useState([]);
@@ -97,7 +91,8 @@ function App() {
     dashboard: "Dashboard",
     monitoring: "Monitoring",
     analysis: "Price Analysis",
-    inquiry: "Letter of Inquiry"
+    inquiry: "Letter of Inquiry",
+    comparative: "Comparative Analysis"
   };
 
   // --- MODERN STYLES ---
@@ -158,15 +153,12 @@ function App() {
           <button style={navItemStyle(activeTab === "analysis")} onClick={() => setActiveTab("analysis")}>
             <FileSearch size={18} /> Price Analysis
           </button>
-<<<<<<< HEAD
-=======
           <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
-            <FileSearch size={18} /> Letter of Inquiry
+            <FileText size={18} /> Letter of Inquiry
           </button>
           <button style={navItemStyle(activeTab === "comparative")} onClick={() => setActiveTab("comparative")}>
-            <FileSearch size={18} /> Comparative Analysis
+            <BarChart2 size={18} /> Comparative Analysis
           </button>
->>>>>>> 6f6d8a15ce4bc9741452519e1e8c394528d90b2e
         </div>
 
         <div style={{ padding: "20px", borderTop: "1px solid #1e293b", fontSize: "0.75rem", color: "#475569" }}>
@@ -179,7 +171,7 @@ function App() {
         <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#0f172a", fontWeight: "800" }}>
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              {tabLabels[activeTab] || ""}
             </h1>
             <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Welcome back, Monitoring Officer</p>
           </div>
@@ -199,11 +191,8 @@ function App() {
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "analysis" && <Analysis prevailingReport={prevailingReport} />}
-<<<<<<< HEAD
-=======
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "comparative" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
->>>>>>> 6f6d8a15ce4bc9741452519e1e8c394528d90b2e
         </div>
       </div>
 
