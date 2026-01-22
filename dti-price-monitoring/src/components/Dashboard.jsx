@@ -3,6 +3,7 @@ import { ShoppingCart, Package, ListChecks, TrendingUp, ArrowUp, ArrowDown, Filt
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import "../assets/Dashboard.css";
 
 export default function Dashboard({ prices }) {
   const [selectedCommodity, setSelectedCommodity] = useState("all");
@@ -63,11 +64,11 @@ export default function Dashboard({ prices }) {
   }, [pricesArray]);
 
   const dateThreshold = useMemo(() => {
-    if (selectedMonth !== "all" || selectedYear !== "all") return null; // explicit month/year overrides rolling range
+    if (selectedMonth !== "all" || selectedYear !== "all") return null;
     const now = new Date();
     if (dateRange === "30d") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     if (dateRange === "90d") return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    return null; // all time
+    return null;
   }, [dateRange, selectedMonth, selectedYear]);
 
   const filteredPrices = useMemo(() => {
@@ -97,7 +98,6 @@ export default function Dashboard({ prices }) {
     ? (filteredPrices.reduce((acc, curr) => acc + (curr.price - (curr.prevPrice || curr.price)), 0) / filteredPrices.length).toFixed(2)
     : 0;
 
-  // --- PREVAILING PRICE CALCULATION ---
   const calculatePrevailing = (source) => {
     const grouped = source.reduce((acc, item) => {
       if (!item || !item.commodity) return acc;
@@ -137,7 +137,6 @@ export default function Dashboard({ prices }) {
       .slice(0, 8);
   };
 
-  // --- TOP 5 HIGH/LOW PRODUCTS ---
   const getTop5HighLow = () => {
     const sorted = [...filteredPrices].sort((a, b) => (b.price || 0) - (a.price || 0));
     return {
@@ -146,7 +145,6 @@ export default function Dashboard({ prices }) {
     };
   };
 
-  // --- PRICE TREND BY MUNICIPALITY ---
   const getPriceTrendByMunicipality = () => {
     const grouped = filteredPrices.reduce((acc, item) => {
       const key = item.municipality || "Unspecified";
@@ -250,7 +248,6 @@ export default function Dashboard({ prices }) {
     return { topUp, topDown };
   }, [filteredPrices]);
 
-  // Download chart as image
   const downloadChart = async (ref, fileName) => {
     if (!ref?.current) return;
     try {
@@ -265,51 +262,51 @@ export default function Dashboard({ prices }) {
   };
 
   return (
-    <div style={{ marginBottom: "32px", fontFamily: "'Inter', sans-serif" }}>
+    <div className="dashboard-wrapper">
       {/* QUICK STATS */}
-      <div style={containerStyle}>
-        <div style={{ marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "1.5rem", color: "#0f172a", fontWeight: "700" }}>
+      <div className="dashboard-container">
+        <div className="dashboard-section-header">
+          <h2>
             Market Situationer Overview
           </h2>
-          <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.9rem" }}>
+          <p>
             Summary of price and supply monitoring activities for the current period.
           </p>
         </div>
 
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "24px" }}>
+        <div className="stat-cards-grid">
           
           {/* Total Entries Card */}
-          <div style={statCardStyle("#eff6ff", "#2563eb")}>
-            <div style={iconWrapperStyle("#dbeafe")}>
+          <div className="stat-card blue">
+            <div className="icon-wrapper blue">
               <ListChecks size={24} color="#2563eb" />
             </div>
             <div>
-              <div style={statValueStyle}>{totalEntries}</div>
-              <div style={statLabelStyle}>Total Records</div>
+              <div className="stat-value">{totalEntries}</div>
+              <div className="stat-label">Total Records</div>
             </div>
           </div>
 
           {/* Commodities Card */}
-          <div style={statCardStyle("#faf5ff", "#9333ea")}>
-            <div style={iconWrapperStyle("#f3e8ff")}>
+          <div className="stat-card purple">
+            <div className="icon-wrapper purple">
               <Package size={24} color="#9333ea" />
             </div>
             <div>
-              <div style={statValueStyle}>{uniqueCommoditiesCount}</div>
-              <div style={statLabelStyle}>Commodities Monitored</div>
+              <div className="stat-value">{uniqueCommoditiesCount}</div>
+              <div className="stat-label">Commodities Monitored</div>
             </div>
           </div>
 
           {/* Stores Card */}
-          <div style={statCardStyle("#ecfdf5", "#059669")}>
-            <div style={iconWrapperStyle("#d1fae5")}>
+          <div className="stat-card green">
+            <div className="icon-wrapper green">
               <ShoppingCart size={24} color="#059669" />
             </div>
             <div>
-              <div style={statValueStyle}>{uniqueStoresCount}</div>
-              <div style={statLabelStyle}>Active Establishments</div>
+              <div className="stat-value">{uniqueStoresCount}</div>
+              <div className="stat-label">Active Establishments</div>
             </div>
           </div>
 
@@ -317,27 +314,19 @@ export default function Dashboard({ prices }) {
       </div>
 
       {/* FILTERED INSIGHTS */}
-      <div style={{ ...containerStyle, marginTop: "16px" }}>
-        <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0f172a", fontWeight: "700", marginBottom: "16px" }}>
+      <div className="dashboard-container filtered-insights">
+        <h3 className="dashboard-section-title">
           Filtered Insights
         </h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
-          <div style={{ minWidth: "200px" }}>
-            <div style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "6px", fontWeight: 600 }}>Commodity</div>
-            <div style={{ position: "relative" }}>
-              <Filter size={16} color="#94a3b8" style={{ position: "absolute", top: "12px", left: "12px" }} />
+        <div className="filters-wrapper">
+          <div className="filter-group">
+            <div className="filter-label">Commodity</div>
+            <div className="filter-select-wrapper">
+              <Filter size={16} color="#94a3b8" />
               <select
                 value={selectedCommodity}
                 onChange={(e) => setSelectedCommodity(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px 10px 36px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  color: "#0f172a",
-                  fontWeight: 600
-                }}
+                className="filter-select"
               >
                 <option value="all">All commodities</option>
                 {uniqueCommodities.map((c) => (
@@ -347,22 +336,14 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
 
-          <div style={{ minWidth: "200px" }}>
-            <div style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "6px", fontWeight: 600 }}>Store</div>
-            <div style={{ position: "relative" }}>
-              <Filter size={16} color="#94a3b8" style={{ position: "absolute", top: "12px", left: "12px" }} />
+          <div className="filter-group">
+            <div className="filter-label">Store</div>
+            <div className="filter-select-wrapper">
+              <Filter size={16} color="#94a3b8" />
               <select
                 value={selectedStore}
                 onChange={(e) => setSelectedStore(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px 10px 36px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  color: "#0f172a",
-                  fontWeight: 600
-                }}
+                className="filter-select"
               >
                 <option value="all">All stores</option>
                 {uniqueStores.map((s) => (
@@ -372,22 +353,14 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
 
-          <div style={{ minWidth: "200px" }}>
-            <div style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "6px", fontWeight: 600 }}>Month</div>
-            <div style={{ position: "relative" }}>
-              <Calendar size={16} color="#94a3b8" style={{ position: "absolute", top: "12px", left: "12px" }} />
+          <div className="filter-group">
+            <div className="filter-label">Month</div>
+            <div className="filter-select-wrapper">
+              <Calendar size={16} color="#94a3b8" />
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px 10px 36px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  color: "#0f172a",
-                  fontWeight: 600
-                }}
+                className="filter-select"
               >
                 <option value="all">All months</option>
                 {availableMonths.map((m) => (
@@ -397,22 +370,14 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
 
-          <div style={{ minWidth: "160px" }}>
-            <div style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "6px", fontWeight: 600 }}>Year</div>
-            <div style={{ position: "relative" }}>
-              <Calendar size={16} color="#94a3b8" style={{ position: "absolute", top: "12px", left: "12px" }} />
+          <div className="filter-group filter-year">
+            <div className="filter-label">Year</div>
+            <div className="filter-select-wrapper">
+              <Calendar size={16} color="#94a3b8" />
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px 10px 36px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  color: "#0f172a",
-                  fontWeight: 600
-                }}
+                className="filter-select"
               >
                 <option value="all">All years</option>
                 {availableYears.map((y) => (
@@ -422,25 +387,14 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
 
-          <div style={{ minWidth: "200px" }}>
-            <div style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "6px", fontWeight: 600 }}>Date Range</div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <div className="filter-group">
+            <div className="filter-label">Date Range</div>
+            <div className="date-range-buttons">
               {["30d", "90d", "all"].map((range) => (
                 <button
                   key={range}
                   onClick={() => setDateRange(range)}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "10px",
-                    border: dateRange === range ? "1px solid #0ea5e9" : "1px solid #e2e8f0",
-                    background: dateRange === range ? "#e0f2fe" : "#f8fafc",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px"
-                  }}
+                  className={`date-range-button ${dateRange === range ? 'active' : ''}`}
                 >
                   <Calendar size={16} />
                   {range === "30d" && "Last 30d"}
@@ -451,13 +405,13 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
         </div>
-        <div style={filterTagStyle}>Filtered: {filterLabel}</div>
+        <div className="filter-tag">Filtered: {filterLabel}</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
-          <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>Average Price Timeline</div>
-              <button onClick={() => downloadChart(timelineChartRef, "PriceTimeline")} style={chartDownloadButtonStyle} title="Download chart">
+        <div className="charts-grid-2col">
+          <div className="chart-container">
+            <div className="chart-header">
+              <div className="chart-title">Average Price Timeline</div>
+              <button onClick={() => downloadChart(timelineChartRef, "PriceTimeline")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
@@ -473,15 +427,15 @@ export default function Dashboard({ prices }) {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No trend data available</div>
+              <div className="no-data-message">No trend data available</div>
             )}
             </div>
           </div>
 
-          <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>Compliance Snapshot</div>
-              <button onClick={() => downloadChart(complianceChartRef, "ComplianceSnapshot")} style={chartDownloadButtonStyle} title="Download chart">
+          <div className="chart-container">
+            <div className="chart-header">
+              <div className="chart-title">Compliance Snapshot</div>
+              <button onClick={() => downloadChart(complianceChartRef, "ComplianceSnapshot")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
@@ -499,17 +453,17 @@ export default function Dashboard({ prices }) {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No compliance data yet</div>
+              <div className="no-data-message">No compliance data yet</div>
             )}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px", marginTop: "16px" }}>
-          <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>SRP vs Current (Top 10)</div>
-              <button onClick={() => downloadChart(srpChartRef, "SRPvsCurrent")} style={chartDownloadButtonStyle} title="Download chart">
+        <div className="charts-grid-2col-margin">
+          <div className="chart-container">
+            <div className="chart-header">
+              <div className="chart-title">SRP vs Current (Top 10)</div>
+              <button onClick={() => downloadChart(srpChartRef, "SRPvsCurrent")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
@@ -527,32 +481,32 @@ export default function Dashboard({ prices }) {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>No SRP comparison data</div>
+              <div className="no-data-message">No SRP comparison data</div>
             )}
             </div>
           </div>
 
-          <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
-            <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>Top Movers</div>
+          <div className="chart-container">
+            <div className="top-movers-container">Top Movers</div>
             {topMovers.topUp.length === 0 && topMovers.topDown.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8" }}>No change detected</div>
+              <div className="no-data-small">No change detected</div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div className="top-movers-grid">
                 <div>
-                  <div style={{ color: "#16a34a", fontWeight: 700, marginBottom: "6px" }}>Largest Upticks</div>
+                  <div className="top-movers-column-title top-movers-upticks">Largest Upticks</div>
                   {topMovers.topUp.map((item) => (
-                    <div key={item.key} style={{ ...extremeItemStyle("#ecfdf3", "#16a34a"), marginBottom: "6px" }}>
-                      <div style={{ fontWeight: 700, color: "#065f46" }}>{item.key.replace("_", " • ")}</div>
-                      <div style={{ color: "#16a34a", fontWeight: 700 }}>+₱{item.change.toFixed(2)}</div>
+                    <div key={item.key} className="extreme-item up">
+                      <div className="extreme-item-title">{item.key.replace("_", " • ")}</div>
+                      <div className="extreme-item-value">+₱{item.change.toFixed(2)}</div>
                     </div>
                   ))}
                 </div>
                 <div>
-                  <div style={{ color: "#dc2626", fontWeight: 700, marginBottom: "6px" }}>Largest Drops</div>
+                  <div className="top-movers-column-title top-movers-drops">Largest Drops</div>
                   {topMovers.topDown.map((item) => (
-                    <div key={item.key} style={{ ...extremeItemStyle("#fef2f2", "#dc2626"), marginBottom: "6px" }}>
-                      <div style={{ fontWeight: 700, color: "#7f1d1d" }}>{item.key.replace("_", " • ")}</div>
-                      <div style={{ color: "#dc2626", fontWeight: 700 }}>₱{item.change.toFixed(2)}</div>
+                    <div key={item.key} className="extreme-item down">
+                      <div className="extreme-item-title">{item.key.replace("_", " • ")}</div>
+                      <div className="extreme-item-value">₱{item.change.toFixed(2)}</div>
                     </div>
                   ))}
                 </div>
@@ -563,54 +517,55 @@ export default function Dashboard({ prices }) {
       </div>
 
       {/* PREVAILING PRICES */}
-      <div style={{ ...containerStyle, marginTop: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <div className="dashboard-container prevailing">
+        <div className="chart-header" style={{ marginBottom: "12px" }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0f172a", fontWeight: "700" }}>
+            <h3 className="dashboard-section-title">
               Prevailing Prices for the Month
             </h3>
           </div>
-          <button onClick={() => downloadChart(prevailingChartRef, "PrevailingPrices")} style={chartDownloadButtonStyle} title="Download chart">
+          <button onClick={() => downloadChart(prevailingChartRef, "PrevailingPrices")} className="chart-download-button" title="Download chart">
             <Download size={14} />
           </button>
         </div>
-        <div style={filterTagStyle}>Filtered: {filterLabel}</div>
+        <div className="filter-tag">Filtered: {filterLabel}</div>
         <div ref={prevailingChartRef}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-          {prevailingPrices.length > 0 ? (
-            prevailingPrices.map((item, idx) => (
-              <div key={idx} style={prevailingCardStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                  <div>
-                    <div style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: "600" }}>
-                      {item.commodity}
+          <div className="prevailing-cards-grid">
+            {prevailingPrices.length > 0 ? (
+              prevailingPrices.map((item, idx) => (
+                <div key={idx} className="prevailing-card">
+                  <div className="prevailing-card-content">
+                    <div className="commodity-info">
+                      <div className="commodity-label">
+                        {item.commodity}
+                      </div>
+                      <div className="commodity-price">
+                        ₱{item.prevailing}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "1.5rem", fontWeight: "800", color: "#0f172a", marginTop: "4px" }}>
-                      ₱{item.prevailing}
+                    <div className="commodity-meta">
+                      <div>SRP: ₱{item.srp}</div>
+                      <div className="commodity-meta-item">{item.count} stores</div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#94a3b8" }}>
-                    <div>SRP: ₱{item.srp}</div>
-                    <div style={{ marginTop: "4px" }}>{item.count} stores</div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div style={{ gridColumn: "1/-1" }} className="no-data-small">
+                No data available yet
               </div>
-            ))
-          ) : (
-            <div style={{ gridColumn: "1/-1", padding: "20px", textAlign: "center", color: "#94a3b8" }}>
-              No data available yet
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Prevailing Prices Comparison Chart */}
         {prevailingPrices.length > 0 && (
-          <div style={{ marginTop: "24px" }}>
-            <h4 style={{ margin: "0 0 12px 0", fontSize: "0.95rem", color: "#0f172a", fontWeight: "700" }}>
+          <div className="comparison-chart-wrapper">
+            <h4 className="dashboard-subsection-title">
               Prevailing vs SRP Comparison
             </h4>
-            <div style={{ position: "relative" }}>
-              <button onClick={() => downloadChart(prevailingChartRef, "PrevailingComparison")} style={{ ...chartDownloadButtonStyle, position: "absolute", top: "-40px", right: "0", zIndex: 10 }} title="Download chart">
+            <div className="comparison-chart-button">
+              <button onClick={() => downloadChart(prevailingChartRef, "PrevailingComparison")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
@@ -641,18 +596,18 @@ export default function Dashboard({ prices }) {
       </div>
 
       {/* PRICE TREND VISUALIZATION */}
-      <div style={{ ...containerStyle, marginTop: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <div className="dashboard-container trends">
+        <div className="chart-header" style={{ marginBottom: "12px" }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0f172a", fontWeight: "700" }}>
+            <h3 className="dashboard-section-title">
               Price Trends by Location
             </h3>
           </div>
-          <button onClick={() => downloadChart(municipalityChartRef, "PriceTrends")} style={chartDownloadButtonStyle} title="Download chart">
+          <button onClick={() => downloadChart(municipalityChartRef, "PriceTrends")} className="chart-download-button" title="Download chart">
             <Download size={14} />
           </button>
         </div>
-        <div style={filterTagStyle}>Filtered: {filterLabel}</div>
+        <div className="filter-tag">Filtered: {filterLabel}</div>
         <div ref={municipalityChartRef}>
           {municipalityTrends.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
@@ -685,7 +640,7 @@ export default function Dashboard({ prices }) {
             </LineChart>
           </ResponsiveContainer>
           ) : (
-          <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
+          <div className="no-data-message">
             No data available for visualization
           </div>
           )}
@@ -693,64 +648,63 @@ export default function Dashboard({ prices }) {
       </div>
 
       {/* TOP 5 PRICE EXTREMES */}
-      <div style={{ ...containerStyle, marginTop: "24px" }}>
-        <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0f172a", fontWeight: "700", marginBottom: "16px" }}>
+      <div className="dashboard-container extremes">
+        <h3 className="dashboard-section-title" style={{ marginBottom: "16px" }}>
           Top 5 Price Extremes
         </h3>
-        <div style={filterTagStyle}>Filtered: {filterLabel}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+        <div className="filter-tag">Filtered: {filterLabel}</div>
+        <div className="charts-grid-equal">
           
           {/* Highest Prices Chart */}
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h4 style={{ margin: 0, fontSize: "0.95rem", color: "#dc2626", fontWeight: "700" }}>
-                <ArrowUp size={16} style={{ display: "inline", marginRight: "4px" }} /> Highest Prices
+            <div className="price-extreme-header">
+              <h4 className="price-extreme-title highest">
+                <ArrowUp size={16} /> Highest Prices
               </h4>
-              <button onClick={() => downloadChart(highestChartRef, "HighestPrices")} style={chartDownloadButtonStyle} title="Download chart">
+              <button onClick={() => downloadChart(highestChartRef, "HighestPrices")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
             <div ref={highestChartRef}>
-            </div>
-            {highest.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={highest}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="commodity" 
-                    stroke="#64748b"
-                    style={{ fontSize: "0.75rem" }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis 
-                    stroke="#64748b"
-                    style={{ fontSize: "0.85rem" }}
-                    label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }}
-                  />
-                  <Tooltip 
-                    formatter={(value) => `₱${value}`}
-                    contentStyle={{ background: "#fee2e2", border: "1px solid #dc2626", borderRadius: "8px" }}
-                  />
-                  <Bar dataKey="price" fill="#dc2626" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-                No data available
-              </div>
-            )}
+              {highest.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={highest}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="commodity" 
+                      stroke="#64748b"
+                      style={{ fontSize: "0.75rem" }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis 
+                      stroke="#64748b"
+                      style={{ fontSize: "0.85rem" }}
+                      label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }}
+                    />
+                    <Tooltip 
+                      formatter={(value) => `₱${value}`}
+                      contentStyle={{ background: "#fee2e2", border: "1px solid #dc2626", borderRadius: "8px" }}
+                    />
+                    <Bar dataKey="price" fill="#dc2626" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="no-data-message">
+                  No data available
+                </div>
+              )}
             </div>
           </div>
 
           {/* Lowest Prices Chart */}
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h4 style={{ margin: 0, fontSize: "0.95rem", color: "#16a34a", fontWeight: "700" }}>
-                <ArrowDown size={16} style={{ display: "inline", marginRight: "4px" }} /> Lowest Prices
+            <div className="price-extreme-header">
+              <h4 className="price-extreme-title lowest">
+                <ArrowDown size={16} /> Lowest Prices
               </h4>
-              <button onClick={() => downloadChart(lowestChartRef, "LowestPrices")} style={chartDownloadButtonStyle} title="Download chart">
+              <button onClick={() => downloadChart(lowestChartRef, "LowestPrices")} className="chart-download-button" title="Download chart">
                 <Download size={14} />
               </button>
             </div>
@@ -780,7 +734,7 @@ export default function Dashboard({ prices }) {
                 </BarChart>
               </ResponsiveContainer>
               ) : (
-              <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
+              <div className="no-data-message">
                 No data available
               </div>
               )}
@@ -792,92 +746,3 @@ export default function Dashboard({ prices }) {
     </div>
   );
 }
-
-// --- STYLES ---
-
-const containerStyle = {
-  background: "#ffffff",
-  padding: "24px",
-  borderRadius: "16px",
-  border: "1px solid #e2e8f0",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-};
-
-const statCardStyle = (bgColor, borderColor) => ({
-  background: "#ffffff",
-  padding: "20px",
-  borderRadius: "12px",
-  border: `1px solid #f1f5f9`,
-  borderLeft: `6px solid ${borderColor}`,
-  display: "flex",
-  alignItems: "center",
-  gap: "16px",
-  transition: "transform 0.2s",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
-});
-
-const prevailingCardStyle = {
-  background: "#f8fafc",
-  padding: "16px",
-  borderRadius: "12px",
-  border: "1px solid #e2e8f0",
-  boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-};
-
-const extremeItemStyle = (bgColor, borderColor) => ({
-  background: bgColor,
-  padding: "12px",
-  borderRadius: "8px",
-  border: `1px solid ${borderColor}20`,
-  borderLeft: `3px solid ${borderColor}`
-});
-
-const iconWrapperStyle = (bgColor) => ({
-  width: "48px",
-  height: "48px",
-  borderRadius: "10px",
-  backgroundColor: bgColor,
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center"
-});
-
-const statValueStyle = {
-  fontSize: "1.5rem",
-  fontWeight: "800",
-  color: "#1e293b",
-  lineHeight: "1.2"
-};
-
-const statLabelStyle = {
-  fontSize: "0.85rem",
-  fontWeight: "500",
-  color: "#64748b",
-  marginTop: "2px"
-};
-
-const filterTagStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "6px 10px",
-  borderRadius: "999px",
-  background: "#e0f2fe",
-  color: "#0f172a",
-  fontWeight: 600,
-  fontSize: "0.85rem",
-  margin: "4px 0 12px 0"
-};
-
-const chartDownloadButtonStyle = {
-  background: "#0ea5e9",
-  color: "white",
-  border: "none",
-  borderRadius: "6px",
-  padding: "6px 10px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "0.85rem",
-  transition: "all 0.2s ease"
-};
