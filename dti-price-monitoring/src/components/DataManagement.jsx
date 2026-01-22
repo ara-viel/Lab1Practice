@@ -5,7 +5,7 @@ import AddRecordModal from "../modals/AddRecordModal";
 import DeleteConfirmModal from "../modals/DeleteConfirmModal";
 import EditRecordModal from "../modals/EditRecordModal";
 
-export default function DataManagement({ prices, onAddData, onDeleteData, onUpdateData, onImportClick }) {
+export default function DataManagement({ prices, onAddData, onDeleteData, onUpdateData, onImportClick, subTab = "basic" }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -281,6 +281,10 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
 
   return (
     <div className="dm-container">
+      <div style={{ marginBottom: "12px", color: "#475569", fontWeight: 700 }}>
+        Viewing: {subTab === "prime" ? "Prime Commodities" : "Basic Necessities"}
+      </div>
+
       {/* Action Bar */}
       <div className="dm-action-bar">
         <div className="dm-action-bar-buttons">

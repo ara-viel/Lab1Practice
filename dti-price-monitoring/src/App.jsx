@@ -6,13 +6,17 @@ import Inquiry from "./components/Inquiry.jsx";
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
 import DataManagement from './components/DataManagement.jsx';
+import BasicNecessities from './components/BasicNecessities.jsx';
+import PrimeCommodities from './components/PrimeCommodities.jsx';
 // Optional: npm install lucide-react
-import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload, Database } from 'lucide-react';
+import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload, Database, ArrowUp } from 'lucide-react';
 
 function App() {
   const [prices, setPrices] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showImport, setShowImport] = useState(false);
+  const [isDataMgmtOpen, setIsDataMgmtOpen] = useState(false);
+  const [dataMgmtTab, setDataMgmtTab] = useState("basic");
   const [form, setForm] = useState({
     commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: ""
   });
@@ -82,6 +86,20 @@ function App() {
       console.error("Error updating data:", error);
       alert("Failed to update record");
     }
+  };
+
+  const handleSelectDataMgmtTab = (subTab) => {
+    setActiveTab("dataManagement");
+    setDataMgmtTab(subTab);
+    setIsDataMgmtOpen(true);
+  };
+
+  // SCROLL TO TOP FUNCTION
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
   };
 
   // --- PREVAILING PRICE CALCULATION ---
@@ -154,6 +172,23 @@ function App() {
     transition: "all 0.2s ease"
   });
 
+  const subNavItemStyle = (isActive) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "10px 18px",
+    margin: "2px 16px 2px 32px",
+    background: isActive ? "#1e293b" : "transparent",
+    border: "none",
+    color: isActive ? "#38bdf8" : "#94a3b8",
+    cursor: "pointer",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    textAlign: "left",
+    transition: "all 0.2s ease"
+  });
+
   const contentStyle = {
     marginLeft: "260px",
     flex: 1,
@@ -186,9 +221,31 @@ function App() {
           <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
             <FileText size={18} /> Letter of Inquiry
           </button>
-          <button style={navItemStyle(activeTab === "dataManagement")} onClick={() => setActiveTab("dataManagement")}>
+          <button
+            style={navItemStyle(activeTab === "dataManagement")}
+            onClick={() => {
+              setActiveTab("dataManagement");
+              setIsDataMgmtOpen((prev) => !prev);
+            }}
+          >
             <Database size={18} /> Data Management
           </button>
+          {isDataMgmtOpen && (
+            <div>
+              <button
+                style={subNavItemStyle(dataMgmtTab === "basic")}
+                onClick={() => handleSelectDataMgmtTab("basic")}
+              >
+                Basic Necessities
+              </button>
+              <button
+                style={subNavItemStyle(dataMgmtTab === "prime")}
+                onClick={() => handleSelectDataMgmtTab("prime")}
+              >
+                Prime Commodities
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ padding: "20px", borderTop: "1px solid #1e293b", fontSize: "0.75rem", color: "#475569" }}>
@@ -211,7 +268,6 @@ function App() {
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
-          {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && (
             <DataManagement 
               prices={prices} 
@@ -231,6 +287,29 @@ function App() {
           onClose={() => setShowImport(false)}
         />
       )}
+
+      {/* Back to Top Button - Fixed at Bottom */}
+      <div style={{ textAlign: "right", paddingTop: "16px", paddingBottom: "16px", paddingRight: "0px", borderTop: "none", position: "fixed", bottom: 0, right: 0, background: "none", width: "calc(80% - 250px)" }}>
+        <button
+          onClick={scrollToTop}
+          title="Back to Top"
+          style={{
+            background: "none",
+            border: "none",
+            padding: "8px 16px",
+            borderRadius: "none",
+            cursor: "pointer",
+            display: "flex",
+            float: "right",
+            alignItems: "center",
+            gap: "6px",
+            fontWeight: "600",
+            color: "#0f172a"
+          }}
+        >
+          <ArrowUp size={30} />
+        </button>
+      </div>
     </div>
   );
 }
