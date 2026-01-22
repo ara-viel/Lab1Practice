@@ -22,6 +22,27 @@ export default function Inquiry({ prices }) {
     [prices]
   );
 
+  const flaggedByStore = useMemo(() => {
+    const groups = {};
+    flaggedItems.forEach((item) => {
+      const key = item.store || "Unknown";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+    return groups;
+  }, [flaggedItems]);
+
+  const firstFlaggedIndexByStore = useMemo(() => {
+    const map = {};
+    flaggedItems.forEach((item, idx) => {
+      const key = item.store || "Unknown";
+      if (map[key] === undefined) {
+        map[key] = idx;
+      }
+    });
+    return map;
+  }, [flaggedItems]);
+
   const handleGenerate = () => {
     if (selectedIds.length === 0) return;
     const items = prices.filter(p => selectedIds.includes(p.id));
@@ -192,71 +213,61 @@ ${blankRows}
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px", fontFamily: "'Inter', sans-serif" }}>
+      {/* Flagged entries moved to the top */}
       <div style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div>
-            <h3 style={{ margin: 0, color: "#0f172a" }}>Generate Letter of Inquiry</h3>
-            <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Select a monitored price entry to auto-draft a letter.</p>
-          </div>
-          <span style={tagStyle}>Auto-generated, editable</span>
-        </div>
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <div>
-            <label style={labelStyle}>Select Price Entries ({selectedIds.length} selected)</label>
-            <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>Click items below to select multiple commodities for the letter</p>
-          </div>
-          <button
-            onClick={handleGenerate}
-            style={{ ...buttonStyle, background: "#0f172a", color: "white", fontSize: "0.9rem" }}
-            disabled={selectedIds.length === 0}
-          >
-            Generate Letter ({selectedIds.length})
-          </button>
+          <h4 style={{ margin: 0, color: "#0f172a" }}>Flagged Entries (Price above SRP)</h4>
+          <span style={tagStyle}>{flaggedItems.length} item(s)</span>
         </div>
-
-        <div style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "10px" }}>
-          {prices.map((p) => {
-            const isSelected = selectedIds.includes(p.id);
-            const variance = Number(p.price || 0) - Number(p.srp || 0);
-            return (
-              <div
-                key={p.id}
-                onClick={() => toggleSelection(p.id)}
-                style={{
-                  padding: "12px 16px",
-                  borderBottom: "1px solid #f1f5f9",
-                  cursor: "pointer",
-                  background: isSelected ? "#eff6ff" : "white",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  transition: "background 0.2s"
-                }}
-              >
-                <div style={{ display: "flex", gap: "12px", alignItems: "center", flex: 1 }}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    readOnly
-                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: "600", color: "#0f172a" }}>{p.commodity || "--"}</div>
-                    <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                      {p.store || "--"} • {p.municipality || "--"}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "8px", fontSize: "0.85rem" }}>
-                  <span style={{ color: "#64748b" }}>₱{Number(p.price || 0).toFixed(2)}</span>
-                  <span style={{ color: variance > 0 ? "#dc2626" : "#22c55e", fontWeight: "600" }}>
-                    {variance > 0 ? "+" : ""}{formatCurrency(variance)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "#64748b", fontSize: "0.75rem" }}>
+                <th style={thStyle}>Commodity</th>
+                <th style={thStyle}>Store</th>
+                <th style={thStyle}>Municipality</th>
+                <th style={thStyle}>Price</th>
+                <th style={thStyle}>SRP</th>
+                <th style={thStyle}>Variance</th>
+                <th style={thStyle}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {flaggedItems.length === 0 && (
+                <tr>
+                  <td colSpan="7" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
+                </tr>
+              )}
+              {flaggedItems.map((p, idx) => {
+                const v = Number(p.price || 0) - Number(p.srp || 0);
+                const storeKey = p.store || "Unknown";
+                const isFirstForStore = firstFlaggedIndexByStore[storeKey] === idx;
+                const storeGroup = flaggedByStore[storeKey] || [p];
+                return (
+                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={tdStyle}>{p.commodity || "--"}</td>
+                    <td style={tdStyle}>{p.store || "--"}</td>
+                    <td style={tdStyle}>{p.municipality || "--"}</td>
+                    <td style={tdStyle}>{formatCurrency(p.price)}</td>
+                    <td style={tdStyle}>{formatCurrency(p.srp)}</td>
+                    <td style={{ ...tdStyle, color: v > 0 ? "#dc2626" : "#0f172a" }}>{formatCurrency(v)}</td>
+                    <td style={tdStyle}>
+                      {isFirstForStore ? (
+                        <button
+                          onClick={() => { setSelectedIds(storeGroup.map(i => i.id)); generateContent(storeGroup); }}
+                          style={{ ...miniButtonStyle, background: "#0f172a", color: "white" }}
+                        >
+                          Draft Letter (Store)
+                        </button>
+                      ) : (
+                        <span style={{ color: "#94a3b8" }}>--</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -292,7 +303,7 @@ ${blankRows}
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "12px" }}>
           <button
-            onClick={handleGenerate}
+            onClick={() => generateContent(selectedItems)}
             style={{ ...buttonStyle, background: "#e2e8f0", color: "#0f172a" }}
             disabled={selectedIds.length === 0}
           >
@@ -305,56 +316,6 @@ ${blankRows}
           >
             Print Letter
           </button>
-        </div>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h4 style={{ margin: 0, color: "#0f172a" }}>Flagged Entries (Price above SRP)</h4>
-          <span style={tagStyle}>{flaggedItems.length} item(s)</span>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "#64748b", fontSize: "0.75rem" }}>
-                <th style={thStyle}>Commodity</th>
-                <th style={thStyle}>Store</th>
-                <th style={thStyle}>Municipality</th>
-                <th style={thStyle}>Price</th>
-                <th style={thStyle}>SRP</th>
-                <th style={thStyle}>Variance</th>
-                <th style={thStyle}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {flaggedItems.length === 0 && (
-                <tr>
-                  <td colSpan="7" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
-                </tr>
-              )}
-              {flaggedItems.map((p) => {
-                const v = Number(p.price || 0) - Number(p.srp || 0);
-                return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={tdStyle}>{p.commodity || "--"}</td>
-                    <td style={tdStyle}>{p.store || "--"}</td>
-                    <td style={tdStyle}>{p.municipality || "--"}</td>
-                    <td style={tdStyle}>{formatCurrency(p.price)}</td>
-                    <td style={tdStyle}>{formatCurrency(p.srp)}</td>
-                    <td style={{ ...tdStyle, color: v > 0 ? "#dc2626" : "#0f172a" }}>{formatCurrency(v)}</td>
-                    <td style={tdStyle}>
-                      <button
-                        onClick={() => { setSelectedIds([p.id]); generateContent([p]); }}
-                        style={{ ...miniButtonStyle, background: "#0f172a", color: "white" }}
-                      >
-                        Draft Letter
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

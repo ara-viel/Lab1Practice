@@ -17,7 +17,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
   const itemsPerPage = 25;
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [newForm, setNewForm] = useState({
-    brand: "", commodity: "", month: "", price: "", size: "", store: "", variant: "", years: ""
+    brand: "", commodity: "", month: "", price: "", srp: "", size: "", store: "", variant: "", years: ""
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, itemId: null, isBulk: false });
 
@@ -220,10 +220,11 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
     await onAddData({
       ...newForm,
       price: Number(newForm.price),
+      srp: newForm.srp === "" ? "" : Number(newForm.srp),
       years: newForm.years || new Date().getFullYear().toString(),
       timestamp: new Date().toISOString()
     });
-    setNewForm({ brand: "", commodity: "", month: "", price: "", size: "", store: "", variant: "", years: "" });
+    setNewForm({ brand: "", commodity: "", month: "", price: "", srp: "", size: "", store: "", variant: "", years: "" });
     setShowAddForm(false);
     setCurrentPage(1);
   };
@@ -238,12 +239,13 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
       return;
     }
 
-    const headers = ["Brand", "Commodity", "Month", "Price", "Size", "Store", "Variant", "Years"];
+    const headers = ["Brand", "Commodity", "Month", "Price", "SRP", "Size", "Store", "Variant", "Years"];
     const rows = prices.map(item => [
       item.brand || "-",
       item.commodity,
       item.month || "-",
       item.price,
+      item.srp || "-",
       item.size || "-",
       item.store || "-",
       item.variant || "-",
@@ -439,6 +441,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                 <SortHeader label="COMMODITY" sortKey="commodity" />
                 <SortHeader label="MONTH" sortKey="month" />
                 <SortHeader label="PRICE" sortKey="price" />
+                <SortHeader label="SRP" sortKey="srp" />
                 <SortHeader label="SIZE" sortKey="size" />
                 <SortHeader label="STORE" sortKey="store" />
                 <SortHeader label="VARIANT" sortKey="variant" />
@@ -449,7 +452,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
             <tbody>
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
+                  <td colSpan="11" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
                     {searchTerm ? "No records match your search" : "No data available. Import or add new records to get started."}
                   </td>
                 </tr>
@@ -478,6 +481,9 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-price">₱{Number(item.price).toFixed(2)}</span>
+                      </td>
+                      <td className="dm-table-td">
+                        <span className="dm-text-secondary">{item.srp ? `₱${Number(item.srp).toFixed(2)}` : "--"}</span>
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-secondary">{item.size || "N/A"}</span>

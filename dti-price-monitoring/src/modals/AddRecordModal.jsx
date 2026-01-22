@@ -69,6 +69,17 @@ export default function AddRecordModal({ isOpen, onClose, formData, onChange, on
           </div>
 
           <div className="arm-form-group">
+            <label className="arm-label">SRP</label>
+            <input
+              type="number"
+              placeholder="Enter SRP or leave blank"
+              value={formData.srp || ""}
+              onChange={(e) => onChange("srp", e.target.value)}
+              className="arm-input"
+            />
+          </div>
+
+          <div className="arm-form-group">
             <label className="arm-label">Size</label>
             <input
               type="text"

@@ -69,6 +69,17 @@ export default function EditRecordModal({ isOpen, onClose, formData, onChange, o
           </div>
 
           <div className="erm-form-group">
+            <label className="erm-label">SRP</label>
+            <input
+              type="number"
+              placeholder="Enter SRP or leave blank"
+              value={formData.srp || ""}
+              onChange={(e) => onChange("srp", e.target.value)}
+              className="erm-input"
+            />
+          </div>
+
+          <div className="erm-form-group">
             <label className="erm-label">Size</label>
             <input
               type="text"

@@ -26,12 +26,13 @@ mongoose.connect(MONGODB_URI, {
   console.error('❌ MongoDB connection error:', err);
 });
 
-// Price Schema (BRAND, COMMODITY, MONTH, PRICE, SIZE, STORE, VARIANT, YEARS)
+// Price Schema (BRAND, COMMODITY, MONTH, PRICE, SIZE, STORE, VARIANT, YEARS, SRP)
 const priceSchema = new mongoose.Schema({
   brand: { type: String, default: "", trim: true },
   commodity: { type: String, required: true, trim: true },
   month: { type: String, default: "", trim: true },
   price: { type: Number, required: true, default: 0 },
+  srp: { type: mongoose.Schema.Types.Mixed, default: "" },
   size: { type: String, default: "", trim: true },
   store: { type: String, default: "", trim: true },
   variant: { type: String, default: "", trim: true },

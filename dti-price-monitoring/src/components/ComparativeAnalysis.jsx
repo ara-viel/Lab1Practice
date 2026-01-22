@@ -15,91 +15,133 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   const uniqueCommodities = [...new Set(pricesArray.map(p => p.commodity).filter(Boolean))];
   const uniqueStores = [...new Set(pricesArray.map(p => p.store).filter(Boolean))];
 
-  // Create SRP lookup from prevailingReport
+  // SRP lookup: take latest non-zero SRP per commodity; fallback to prevailingReport
   const srpLookup = {};
   const prevailingLookup = {};
+
+  // Populate from prevailingReport first (baseline)
   prevailingReport.forEach(r => {
-    srpLookup[r.commodity] = r.srp;
-    prevailingLookup[r.commodity] = r.prevailing;
+    if (r.commodity && r.srp) {
+      srpLookup[r.commodity] = { value: Number(r.srp) || 0, ts: 0 };
+    }
+    if (r.commodity && r.prevailing) {
+      prevailingLookup[r.commodity] = Number(r.prevailing) || 0;
+    }
+  });
+
+  // Override with latest SRP from prices
+  pricesArray.forEach(p => {
+    if (!p || !p.commodity) return;
+    const srpNum = Number(p.srp);
+    if (!Number.isNaN(srpNum) && srpNum > 0) {
+      const ts = p.timestamp ? new Date(p.timestamp).getTime() : 0;
+      const current = srpLookup[p.commodity];
+      if (!current || ts >= current.ts) {
+        srpLookup[p.commodity] = { value: srpNum, ts };
+      }
+    }
   });
 
   // Get combined data
   const getCombinedData = () => {
-    // Group by commodity and store
-    const grouped = {};
-    
-    pricesArray.forEach(item => {
-      if (!item || !item.commodity || !item.store) return;
+    try {
+      // Group by commodity and store
+      const grouped = {};
       
-      const key = `${item.commodity}_${item.store}`;
-      if (!grouped[key]) {
-        grouped[key] = {
-          commodity: item.commodity,
-          store: item.store,
-          prices: []
-        };
-      }
-      grouped[key].prices.push({
-        price: item.price || 0,
-        timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
+      pricesArray.forEach(item => {
+        if (!item || !item.commodity) return;
+        
+        const key = `${item.commodity}_${item.store || "Unknown"}`;
+        if (!grouped[key]) {
+          grouped[key] = {
+            commodity: item.commodity,
+            store: item.store || "Unknown",
+            size: item.size || "",
+            prices: []
+          };
+        }
+        grouped[key].prices.push({
+          price: Number(item.price) || 0,
+          srp: Number(item.srp) || 0,
+          timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
+        });
       });
-    });
 
-    // Calculate price change for each group and add SRP/Prevailing info
-    const results = Object.values(grouped).map(group => {
-      // Sort by timestamp to get latest
-      const sortedPrices = group.prices.sort((a, b) => b.timestamp - a.timestamp);
-      const currentPrice = sortedPrices[0]?.price || 0;
-      const previousPrice = sortedPrices[1]?.price || currentPrice || 0;
-      
-      const priceChange = currentPrice - previousPrice;
-      const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
-      
-      const srp = srpLookup[group.commodity] || 0;
-      const prevailingPrice = prevailingLookup[group.commodity] || 0;
-      const isCompliant = currentPrice <= srp;
+      // Calculate price change for each group and add SRP/Prevailing info
+      const results = Object.values(grouped).map(group => {
+        // Sort by timestamp to get latest
+        const sortedPrices = group.prices.sort((a, b) => b.timestamp - a.timestamp);
+        const currentPrice = sortedPrices[0]?.price || 0;
+        const previousPrice = sortedPrices[1]?.price || currentPrice || 0;
+        
+        const priceChange = currentPrice - previousPrice;
+        const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
+        
+        const srpEntry = srpLookup[group.commodity];
+        const srp = srpEntry?.value || 0;
 
-      return {
-        commodity: group.commodity,
-        store: group.store,
-        prevailingPrice: prevailingPrice,
-        srp: srp,
-        currentPrice: currentPrice,
-        previousPrice: previousPrice,
-        priceChange: priceChange,
-        percentChange: percentChange,
-        isCompliant: isCompliant
-      };
-    });
+        const pickHighestLatest = (arr) => {
+          if (!arr || arr.length === 0) return 0;
+          return arr.reduce((best, curr) => {
+            if (!best) return curr;
+            if (curr.price > best.price) return curr;
+            if (curr.price === best.price && curr.timestamp > best.timestamp) return curr;
+            return best;
+          }, null).price || 0;
+        };
 
-    // Apply filters
-    let filtered = results;
-    if (selectedCommodity !== "all") {
-      filtered = filtered.filter(item => item.commodity === selectedCommodity);
-    }
-    if (selectedStore !== "all") {
-      filtered = filtered.filter(item => item.store === selectedStore);
-    }
-    
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(item =>
-        item.commodity.toLowerCase().includes(searchLower) ||
-        item.store.toLowerCase().includes(searchLower)
-      );
-    }
+        const withSrp = group.prices.filter(r => r.srp > 0 && r.price <= r.srp);
+        const noSrp = group.prices.filter(r => !r.srp || Number.isNaN(r.srp) || r.srp === 0);
+        const prevailingPrice = withSrp.length > 0 ? pickHighestLatest(withSrp) : pickHighestLatest(noSrp);
 
-    // Sort by commodity first, then by store
-    return filtered.sort((a, b) => {
-      if (a.commodity !== b.commodity) {
-        return a.commodity.localeCompare(b.commodity);
+        const isCompliant = srp > 0 ? currentPrice <= srp : true;
+
+        return {
+          commodity: group.commodity,
+          store: group.store,
+          size: group.size,
+          prevailingPrice: prevailingPrice,
+          srp: srp,
+          currentPrice: currentPrice,
+          previousPrice: previousPrice,
+          priceChange: priceChange,
+          percentChange: percentChange,
+          isCompliant: isCompliant
+        };
+      });
+
+      // Apply filters
+      let filtered = results;
+      if (selectedCommodity !== "all") {
+        filtered = filtered.filter(item => item.commodity === selectedCommodity);
       }
-      return a.store.localeCompare(b.store);
-    });
+      if (selectedStore !== "all") {
+        filtered = filtered.filter(item => item.store === selectedStore);
+      }
+      
+      // Apply search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filtered = filtered.filter(item =>
+          item.commodity.toLowerCase().includes(searchLower) ||
+          item.store.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Sort by commodity first, then by store
+      return filtered.sort((a, b) => {
+        if (a.commodity !== b.commodity) {
+          return a.commodity.localeCompare(b.commodity);
+        }
+        return a.store.localeCompare(b.store);
+      });
+    } catch (error) {
+      console.error("Error in getCombinedData:", error);
+      return [];
+    }
   };
 
-  const filteredData = getCombinedData();
+  const filteredData = useMemo(() => getCombinedData(), [pricesArray, selectedCommodity, selectedStore, searchTerm, srpLookup, prevailingLookup]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -118,7 +160,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
       {/* Summary Cards - Organized */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <div style={{ ...cardStyle, borderLeft: "4px solid #0f172a" }}>
-          <span style={labelStyle}>Total Records</span>
+          <span style={labelStyle}>Total Commodities</span>
           <div style={valueStyle}>{totalRecords}</div>
         </div>
         <div style={{ ...cardStyle, borderLeft: "4px solid #22c55e" }}>
@@ -215,6 +257,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
             <thead>
               <tr style={{ textAlign: "left" }}>
                 <th style={thStyle}>COMMODITY</th>
+                <th style={thStyle}>SIZE</th>
                 <th style={thStyle}>STORE</th>
                 <th style={thStyle}>PREVAILING PRICE</th>
                 <th style={thStyle}>SRP LIMIT</th>
@@ -227,7 +270,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
             <tbody>
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
+                  <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
                     {searchTerm ? "No records match your search" : "No data available for the selected filters"}
                   </td>
                 </tr>
@@ -241,13 +284,16 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
                         <div style={{ fontWeight: "600", color: "#1e293b" }}>{item.commodity}</div>
                       </td>
                       <td style={tdStyle}>
+                        <div style={{ color: "#475569" }}>{item.size || "--"}</div>
+                      </td>
+                      <td style={tdStyle}>
                         <div style={{ color: "#475569" }}>{item.store}</div>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: "1rem", fontWeight: "600" }}>₱{(item.prevailingPrice || 0).toFixed(2)}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ color: "#64748b" }}>₱{(item.srp || 0).toFixed(2)}</span>
+                        <span style={{ color: "#64748b" }}>₱{typeof item.srp === 'number' ? item.srp.toFixed(2) : (item.srp ? Number(item.srp).toFixed(2) : "--")}</span>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: "1.05rem", fontWeight: "600", color: isCompliant ? "#22c55e" : "#ef4444" }}>

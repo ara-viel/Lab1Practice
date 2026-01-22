@@ -210,8 +210,8 @@ function App() {
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
-          {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && (
             <DataManagement 
               prices={prices} 
