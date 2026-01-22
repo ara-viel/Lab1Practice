@@ -18,7 +18,13 @@ export default function Inquiry({ prices }) {
   };
 
   const flaggedItems = useMemo(
-    () => prices.filter((p) => Number(p.srp || 0) > 0 && Number(p.price) > Number(p.srp)),
+    () => prices.filter((p) => {
+      const srp = Number(p.srp || 0);
+      const price = Number(p.price || 0);
+      if (srp <= 0) return false;
+      // Flagged if price exceeds SRP by 10% or more, OR falls 10% or more below SRP
+      return price >= srp * 1.10 || price <= srp * 0.90;
+    }),
     [prices]
   );
 
@@ -229,20 +235,24 @@ ${blankRows}
                 <th style={thStyle}>Price</th>
                 <th style={thStyle}>SRP</th>
                 <th style={thStyle}>Variance</th>
+                <th style={thStyle}>Change %</th>
                 <th style={thStyle}>Action</th>
               </tr>
             </thead>
             <tbody>
               {flaggedItems.length === 0 && (
                 <tr>
-                  <td colSpan="7" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
+                  <td colSpan="8" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
                 </tr>
               )}
               {flaggedItems.map((p, idx) => {
                 const v = Number(p.price || 0) - Number(p.srp || 0);
+                const percentChange = Number(p.srp || 0) > 0 ? ((v / Number(p.srp)) * 100) : 0;
                 const storeKey = p.store || "Unknown";
                 const isFirstForStore = firstFlaggedIndexByStore[storeKey] === idx;
                 const storeGroup = flaggedByStore[storeKey] || [p];
+                const varianceColor = v < 0 ? "#f59e0b" : v > 0 ? "#dc2626" : "#0f172a";
+                const changeColor = percentChange < 0 ? "#f59e0b" : percentChange > 0 ? "#dc2626" : "#0f172a";
                 return (
                   <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={tdStyle}>{p.commodity || "--"}</td>
@@ -250,7 +260,10 @@ ${blankRows}
                     <td style={tdStyle}>{p.municipality || "--"}</td>
                     <td style={tdStyle}>{formatCurrency(p.price)}</td>
                     <td style={tdStyle}>{formatCurrency(p.srp)}</td>
-                    <td style={{ ...tdStyle, color: v > 0 ? "#dc2626" : "#0f172a" }}>{formatCurrency(v)}</td>
+                    <td style={{ ...tdStyle, color: varianceColor }}>{formatCurrency(v)}</td>
+                    <td style={{ ...tdStyle, color: changeColor, fontWeight: "600" }}>
+                      {percentChange > 0 ? "+" : ""}{percentChange.toFixed(1)}%
+                    </td>
                     <td style={tdStyle}>
                       {isFirstForStore ? (
                         <button

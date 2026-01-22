@@ -94,7 +94,9 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         const noSrp = group.prices.filter(r => !r.srp || Number.isNaN(r.srp) || r.srp === 0);
         const prevailingPrice = withSrp.length > 0 ? pickHighestLatest(withSrp) : pickHighestLatest(noSrp);
 
-        const isCompliant = srp > 0 ? currentPrice <= srp : true;
+        // Compliant if: price is within ±10% of SRP
+        // Non-compliant if: price >= SRP * 1.10 OR price <= SRP * 0.90 (outside ±10% threshold)
+        const isCompliant = srp > 0 ? (currentPrice < srp * 1.10 && currentPrice > srp * 0.90) : true;
 
         return {
           commodity: group.commodity,
