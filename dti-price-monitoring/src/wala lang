@@ -1,0 +1,365 @@
+import React, { useEffect, useState } from "react";
+import { addPriceData, getPriceData, deletePriceData, updatePriceData } from './services/priceService.js';
+import Dashboard from './components/Dashboard.jsx';
+import Monitoring from './components/Monitoring.jsx';
+import Inquiry from "./components/Inquiry.jsx";
+import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
+import FileImport from './components/FileImport.jsx';
+import DataManagement from './components/DataManagement.jsx';
+import BasicNecessities from './components/BasicNecessities.jsx';
+import PrimeCommodities from './components/PrimeCommodities.jsx';
+// Optional: npm install lucide-react
+import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload, Database, ArrowUp, ChevronRight } from 'lucide-react';
+
+function App() {
+  const [prices, setPrices] = useState([]);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [showImport, setShowImport] = useState(false);
+  const [isDataMgmtOpen, setIsDataMgmtOpen] = useState(false);
+  const [dataMgmtTab, setDataMgmtTab] = useState("basic");
+  const [form, setForm] = useState({
+    commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: ""
+  });
+
+  const loadData = async () => {
+    const data = await getPriceData();
+    setPrices(data);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSave = async () => {
+    if (!form.commodity || !form.price) return alert("Please fill in key fields");
+    await addPriceData({
+      ...form,
+      price: Number(form.price),
+      prevPrice: Number(form.prevPrice),
+      srp: Number(form.srp),
+      timestamp: new Date().toISOString()
+    });
+    setForm({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
+    loadData();
+    setActiveTab("dashboard"); // Redirect to overview after saving
+  };
+
+  const handleImportSuccess = async (importedData) => {
+    // Add each imported record to the database
+    for (const record of importedData) {
+      // Normalize keys to lowercase to handle case-insensitive imports
+      const normalizedRecord = {};
+      Object.keys(record).forEach(key => {
+        normalizedRecord[key.toLowerCase()] = record[key];
+      });
+      
+      await addPriceData({
+        brand: normalizedRecord.brand || '',
+        commodity: normalizedRecord.commodity || 'Unknown',
+        month: normalizedRecord.month || '',
+        price: Number(normalizedRecord.price) || 0,
+        size: normalizedRecord.size || '',
+        store: normalizedRecord.store || '',
+        variant: normalizedRecord.variant || '',
+        years: normalizedRecord.years || new Date().getFullYear().toString(),
+        timestamp: normalizedRecord.timestamp || new Date().toISOString()
+      });
+    }
+    loadData();
+  };
+
+  const handleDeleteData = async (id) => {
+    try {
+      await deletePriceData(id);
+      loadData();
+    } catch (error) {
+      console.error("Error deleting data:", error);
+      alert("Failed to delete record");
+    }
+  };
+
+  const handleUpdateData = async (id, updatedData) => {
+    try {
+      await updatePriceData(id, updatedData);
+      loadData();
+    } catch (error) {
+      console.error("Error updating data:", error);
+      alert("Failed to update record");
+    }
+  };
+
+  const handleSelectDataMgmtTab = (subTab) => {
+    setActiveTab("dataManagement");
+    setDataMgmtTab(subTab);
+    setIsDataMgmtOpen(true);
+  };
+
+  // SCROLL TO TOP FUNCTION
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
+
+  // --- PREVAILING PRICE CALCULATION ---
+  const calculatePrevailing = () => {
+    const grouped = prices.reduce((acc, item) => {
+      if (!acc[item.commodity]) acc[item.commodity] = [];
+      acc[item.commodity].push(item);
+      return acc;
+    }, {});
+
+    return Object.keys(grouped).map(name => {
+      const items = grouped[name];
+      const pList = items.map(i => i.price);
+      const srp = items[0].srp || 0;
+      const freq = {};
+      let maxFreq = 0;
+      pList.forEach(p => { 
+        freq[p] = (freq[p] || 0) + 1; 
+        if(freq[p] > maxFreq) maxFreq = freq[p]; 
+      });
+      const modes = Object.keys(freq).filter(p => freq[p] === maxFreq);
+
+      let prevailing;
+      if (maxFreq > 1 && modes.length === 1) {
+        prevailing = Number(modes[0]);
+      } else {
+        const validUnderSRP = pList.filter(p => p <= srp);
+        prevailing = validUnderSRP.length > 0 ? Math.max(...validUnderSRP) : Math.max(...pList);
+      }
+      return { commodity: name, prevailing, srp };
+    });
+  };
+
+  const prevailingReport = calculatePrevailing();
+
+  const tabLabels = {
+    dashboard: "Dashboard",
+    monitoring: "Monitoring",
+    "comparative price analysis": "Comparative Price Analysis",
+    inquiry: "Letter of Inquiry",
+    dataManagement: "Data Management"
+  };
+
+  // --- MODERN STYLES ---
+  const sidebarStyle = {
+    width: "260px",
+    background: "#0f172a", // Deep Navy
+    color: "#f8fafc",
+    minHeight: "100vh",
+    position: "fixed",
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "4px 0 10px rgba(0,0,0,0.05)"
+  };
+
+  const navItemStyle = (isActive) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 20px",
+    margin: "4px 16px",
+    background: isActive ? "#334155" : "transparent",
+    border: "none",
+    color: isActive ? "#38bdf8" : "#94a3b8",
+    cursor: "pointer",
+    borderRadius: "8px",
+    fontSize: "0.95rem",
+    fontWeight: "600",
+    textAlign: "left",
+    transition: "all 0.2s ease"
+  });
+
+  const subNavItemStyle = (isActive) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "10px 18px",
+    margin: "2px 16px 2px 32px",
+    background: isActive ? "#1e293b" : "transparent",
+    border: "none",
+    color: isActive ? "#38bdf8" : "#94a3b8",
+    cursor: "pointer",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    textAlign: "left",
+    transition: "all 0.2s ease"
+  });
+
+  const contentStyle = {
+    marginLeft: "260px",
+    flex: 1,
+    background: "#f8fafc", // Light gray-blue background
+    minHeight: "100vh",
+    padding: "40px"
+  };
+
+  return (
+    <div style={{ display: "flex", fontFamily: "'Inter', sans-serif" }}>
+      {/* SIDEBAR */}
+      <div style={sidebarStyle}>
+        <div style={{ padding: "32px 24px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ background: "#38bdf8", padding: "6px", borderRadius: "8px" }}>
+            <MenuIcon size={20} color="#0f172a" />
+          </div>
+          <span style={{ fontWeight: "800", fontSize: "1.2rem", letterSpacing: "-0.5px" }}>DTI MONITOR</span>
+        </div>
+        
+        <div style={{ flex: 1 }}>
+          <button style={navItemStyle(activeTab === "dashboard")} onClick={() => setActiveTab("dashboard")}>
+            <LayoutDashboard size={18} /> Dashboard
+          </button>
+          <button style={navItemStyle(activeTab === "monitoring")} onClick={() => setActiveTab("monitoring")}>
+            <Activity size={18} /> Monitoring
+          </button>
+          <button style={navItemStyle(activeTab === "comparative price analysis")} onClick={() => setActiveTab("comparative price analysis")}>
+            <FileSearch size={18} /> Comparative Price Analysis
+          </button>
+          <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
+            <FileText size={18} /> Letter of Inquiry
+          </button>
+          <button
+            style={{
+              ...navItemStyle(activeTab === "dataManagement"),
+              justifyContent: "space-between"
+            }}
+            onClick={() => {
+              setActiveTab("dataManagement");
+              setIsDataMgmtOpen((prev) => !prev);
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <Database size={18} />
+              Data Management
+            </span>
+
+            <ChevronRight
+              size={18}
+              color={activeTab === "dataManagement" ? "#38bdf8" : "#94a3b8"}
+              style={{
+                transition: "transform 0.2s ease",
+                transform: isDataMgmtOpen ? "rotate(90deg)" : "rotate(0deg)"
+              }}
+            />
+          </button>
+
+          {isDataMgmtOpen && (
+            <div>
+              <button
+                style={subNavItemStyle(dataMgmtTab === "basic")}
+                onClick={() => handleSelectDataMgmtTab("basic")}
+              >
+                Basic Necessities
+              </button>
+              <button
+                style={subNavItemStyle(dataMgmtTab === "prime")}
+                onClick={() => handleSelectDataMgmtTab("prime")}
+              >
+                Prime Commodities
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "20px", borderTop: "1px solid #1e293b", fontSize: "0.75rem", color: "#475569" }}>
+          v1.0.4 • System Stable
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div style={contentStyle}>
+        <header style={{ marginBottom: "32px" }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#0f172a", fontWeight: "800" }}>
+              {tabLabels[activeTab] || ""}
+            </h1>
+            <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Welcome back, Monitoring Officer</p>
+          </div>
+        </header>
+
+        <div style={{ maxWidth: "1200px" }}>
+          {activeTab === "dashboard" && <Dashboard prices={prices} />}
+          {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
+          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "dataManagement" && (
+          <>
+            {dataMgmtTab === "basic" && (
+              <BasicNecessities
+                prices={prices}
+                onDeleteData={handleDeleteData}
+                onUpdateData={handleUpdateData}
+              />
+            )}
+
+            {dataMgmtTab === "prime" && (
+              <PrimeCommodities
+                prices={prices}
+                onDeleteData={handleDeleteData}
+                onUpdateData={handleUpdateData}
+              />
+            )}
+          </>
+        )}
+
+        </div>
+      </div>
+
+      {/* FILE IMPORT MODAL */}
+      {showImport && (
+        <FileImport 
+          onImportSuccess={handleImportSuccess}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {/* Back to Top Button - Fixed at Bottom */}
+      <div style={{ textAlign: "right", paddingTop: "16px", paddingBottom: "16px", paddingRight: "0px", borderTop: "none", position: "fixed", bottom: 0, right: 0, background: "none", width: "calc(80% - 250px)" }}>
+        <button
+          onClick={scrollToTop}
+          title="Back to Top"
+          style={{
+            background: "none",
+            border: "none",
+            padding: "8px 16px",
+            borderRadius: "none",
+            cursor: "pointer",
+            display: "flex",
+            float: "right",
+            alignItems: "center",
+            gap: "6px",
+            fontWeight: "600",
+            color: "#0f172a"
+          }}
+        >
+          <ArrowUp size={30} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Reusable Button Styles
+const primaryButtonStyle = {
+  background: "#0f172a",
+  color: "white",
+  border: "none",
+  padding: "10px 18px",
+  borderRadius: "8px",
+  fontWeight: "600",
+  cursor: "pointer"
+};
+
+const secondaryButtonStyle = {
+  background: "white",
+  color: "#0f172a",
+  border: "1px solid #e2e8f0",
+  padding: "10px 18px",
+  borderRadius: "8px",
+  fontWeight: "600",
+  cursor: "pointer"
+};
+
+export default App;
