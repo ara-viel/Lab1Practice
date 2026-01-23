@@ -21,13 +21,20 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, itemId: null, isBulk: false });
 
+  const categoryMap = {
+    basic: "Basic Necessities",
+    prime: "Prime Commodities",
+  };
+  const activeCategory = categoryMap[subTab] || null;
+  const isOtherTab = subTab === "others";
+  const primaryCategories = ["basic necessities", "prime commodities"];
+
   const resolveId = (item, fallbackIndex) => item?._id || item?.id || item?.timestamp || `${item?.commodity || "row"}-${item?.store || ""}-${item?.price || ""}-${fallbackIndex ?? ""}`;
 
 
   // Search and filter logic
   const filteredData = useMemo(() => {
     if (!prices) return [];
-    
     return prices.filter(item => {
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = (
@@ -36,7 +43,13 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
         (item.brand?.toLowerCase() || "").includes(searchLower) ||
         (item.variant?.toLowerCase() || "").includes(searchLower)
       );
-
+      // Category filter based on subTab
+      const itemCategory = (item.category || "").toString().toLowerCase();
+      if (isOtherTab) {
+        if (primaryCategories.includes(itemCategory)) return false;
+      } else if (activeCategory) {
+        if (itemCategory !== activeCategory.toLowerCase()) return false;
+      }
       // Year filter
       if (selectedYear !== "all") {
         const itemYear = item.years || new Date(item.timestamp).getFullYear();
@@ -44,7 +57,6 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
           return false;
         }
       }
-
       // Month filter
       if (selectedMonth !== "all") {
         const itemMonth = item.month?.toLowerCase() || "";
@@ -52,10 +64,26 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
           return false;
         }
       }
-
       return matchesSearch;
     });
-  }, [prices, searchTerm, selectedYear, selectedMonth]);
+  }, [prices, searchTerm, selectedYear, selectedMonth, subTab]);
+
+  // Count unique brands and commodities in filteredData
+  const brandCount = useMemo(() => {
+    const set = new Set();
+    filteredData.forEach(item => {
+      if (item.brand) set.add(item.brand.trim().toLowerCase());
+    });
+    return set.size;
+  }, [filteredData]);
+
+  const commodityCount = useMemo(() => {
+    const set = new Set();
+    filteredData.forEach(item => {
+      if (item.commodity) set.add(item.commodity.trim().toLowerCase());
+    });
+    return set.size;
+  }, [filteredData]);
 
   useEffect(() => {
     // Remove selections that are no longer in the filtered set
@@ -217,12 +245,14 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
       alert("Please fill in commodity and price");
       return;
     }
+    const categoryToSave = activeCategory || "";
     await onAddData({
       ...newForm,
       price: Number(newForm.price),
       srp: newForm.srp === "" ? "" : Number(newForm.srp),
       years: newForm.years || new Date().getFullYear().toString(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      category: categoryToSave
     });
     setNewForm({ brand: "", commodity: "", month: "", price: "", srp: "", size: "", store: "", variant: "", years: "" });
     setShowAddForm(false);
@@ -282,7 +312,11 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
   return (
     <div className="dm-container">
       <div style={{ marginBottom: "12px", color: "#475569", fontWeight: 700 }}>
-        Viewing: {subTab === "prime" ? "Prime Commodities" : "Basic Necessities"}
+        Viewing: {subTab === "prime" ? "Prime Commodities" : subTab === "others" ? "Other Categories" : "Basic Necessities"}
+      </div>
+      <div style={{ marginBottom: "12px", color: "#334155", fontWeight: 500, display: "flex", gap: "32px", flexWrap: "wrap" }}>
+        <span>Brands: <strong>{brandCount}</strong></span>
+        <span>Commodities: <strong>{commodityCount}</strong></span>
       </div>
 
       {/* Action Bar */}

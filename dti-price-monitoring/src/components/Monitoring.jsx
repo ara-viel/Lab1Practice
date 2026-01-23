@@ -135,7 +135,10 @@ export default function Monitoring({ prices, form, handleChange, handleSave }) {
  * Dynamic Table Component - automatically renders all columns from data
  */
 function DynamicTable({ data }) {
-  const columns = getOrderedColumns(data);
+  const columns = getOrderedColumns(data).filter(col => {
+    const norm = (col || '').toString().replace(/[_\s]/g, '').toLowerCase();
+    return !['timestamp', 'category', 'createdat', 'updatedat'].includes(norm);
+  });
 
   if (columns.length === 0) {
     return <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>No data to display</div>;

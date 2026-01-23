@@ -1,16 +1,71 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { ShoppingCart, Package, ListChecks, TrendingUp, ArrowUp, ArrowDown, Filter, Calendar, Download } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "../assets/Dashboard.css";
 
-export default function Dashboard({ prices }) {
+export default function Dashboard({ prices: pricesProp }) {
+  const [prices, setPrices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
   const [dateRange, setDateRange] = useState("90d");
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [selectedYear, setSelectedYear] = useState("all");
+  
+  // Helper function to convert month names to numbers (0-11)
+  const monthNameToNumber = (monthStr) => {
+    if (!monthStr) return null;
+    const monthUpper = String(monthStr).toUpperCase().trim();
+    const monthMap = {
+      'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3,
+      'MAY': 4, 'JUNE': 5, 'JULY': 6, 'AUGUST': 7,
+      'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11,
+      'FEBUARY': 1, // Handle common typo
+      'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3,
+      'JUN': 5, 'JUL': 6, 'AUG': 7, 'SEP': 8,
+      'OCT': 9, 'NOV': 10, 'DEC': 11
+    };
+    
+    // First try month name lookup
+    if (monthMap.hasOwnProperty(monthUpper)) {
+      return monthMap[monthUpper];
+    }
+    
+    // If it's already a number, convert it
+    const num = Number(monthStr);
+    if (!Number.isNaN(num) && num >= 0 && num <= 12) {
+      return num;
+    }
+    
+    return null;
+  };
+  
+  // Fetch prices from server on component mount
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch('http://localhost:5000/api/prices');
+        if (!response.ok) throw new Error('Failed to fetch prices');
+        const data = await response.json();
+        console.log('Fetched prices from server:', data);
+        setPrices(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching prices:', err);
+        setError(err.message);
+        // Fallback to prop data if available
+        if (pricesProp) setPrices(Array.isArray(pricesProp) ? pricesProp : []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPrices();
+  }, [pricesProp]);
+  
   const pieColors = ["#22c55e", "#f97316"];
   const timelineChartRef = useRef(null);
   const complianceChartRef = useRef(null);
@@ -51,17 +106,39 @@ export default function Dashboard({ prices }) {
     const monthSet = new Set();
     const yearSet = new Set();
     pricesArray.forEach((p) => {
-      if (!p || !p.timestamp) return;
-      const d = new Date(p.timestamp);
-      if (Number.isNaN(d.getTime())) return;
-      monthSet.add(d.getMonth());
-      yearSet.add(d.getFullYear());
+      if (!p) return;
+      
+      // Try to get month from month field (could be text or number)
+      if (p.month) {
+        const monthNum = monthNameToNumber(p.month);
+        if (monthNum !== null) {
+          monthSet.add(monthNum);
+        }
+      }
+      
+      // Try to get year from years field
+      if (p.years) {
+        const yearNum = Number(p.years);
+        if (!Number.isNaN(yearNum) && yearNum > 1900) {
+          yearSet.add(yearNum);
+        }
+      }
+      
+      // Fallback to timestamp if month/years not available
+      if (!p.month && !p.years && p.timestamp) {
+        const d = new Date(p.timestamp);
+        if (!Number.isNaN(d.getTime())) {
+          monthSet.add(d.getMonth());
+          yearSet.add(d.getFullYear());
+        }
+      }
     });
+    
     return {
       availableMonths: Array.from(monthSet).sort((a, b) => a - b),
       availableYears: Array.from(yearSet).sort((a, b) => b - a)
     };
-  }, [pricesArray]);
+  }, [pricesArray, monthNameToNumber]);
 
   const dateThreshold = useMemo(() => {
     if (selectedMonth !== "all" || selectedYear !== "all") return null;
@@ -72,23 +149,31 @@ export default function Dashboard({ prices }) {
   }, [dateRange, selectedMonth, selectedYear]);
 
   const filteredPrices = useMemo(() => {
-    return pricesArray.filter((p) => {
+    const result = pricesArray.filter((p) => {
       if (!p) return false;
       if (selectedCommodity !== "all" && p.commodity !== selectedCommodity) return false;
       if (selectedStore !== "all" && p.store !== selectedStore) return false;
-      const ts = p.timestamp ? new Date(p.timestamp) : null;
+      
       if (selectedYear !== "all") {
-        if (!ts || ts.getFullYear() !== Number(selectedYear)) return false;
+        const yearNum = Number(p.years);
+        if (Number.isNaN(yearNum) || yearNum !== Number(selectedYear)) return false;
       }
+      
       if (selectedMonth !== "all") {
-        if (!ts || ts.getMonth() !== Number(selectedMonth)) return false;
+        const monthNum = monthNameToNumber(p.month);
+        if (monthNum === null || monthNum !== Number(selectedMonth)) return false;
       }
-      if (dateThreshold) {
-        if (!ts || ts < dateThreshold) return false;
+      
+      if (dateThreshold && p.timestamp) {
+        const ts = new Date(p.timestamp);
+        if (ts < dateThreshold) return false;
       }
+      
       return true;
     });
-  }, [pricesArray, selectedCommodity, selectedStore, dateThreshold, selectedMonth, selectedYear]);
+    
+    return result;
+  }, [pricesArray, selectedCommodity, selectedStore, dateThreshold, selectedMonth, selectedYear, monthNameToNumber]);
 
   const totalEntries = filteredPrices.length;
   const uniqueCommoditiesCount = new Set(filteredPrices.map((p) => p.commodity)).size;
@@ -211,16 +296,151 @@ export default function Dashboard({ prices }) {
   const timeSeriesData = useMemo(() => {
     const buckets = {};
     filteredPrices.forEach((p) => {
-      if (!p || !p.timestamp) return;
-      const day = new Date(p.timestamp).toISOString().split("T")[0];
-      if (!buckets[day]) buckets[day] = { date: day, total: 0, count: 0 };
-      buckets[day].total += Number(p.price) || 0;
-      buckets[day].count += 1;
+      if (!p) return;
+      
+      // Use month/years if available (imported data), otherwise use timestamp
+      let dateKey = null;
+      if (p.month && p.years) {
+        const monthNum = monthNameToNumber(p.month);
+        const yearNum = Number(p.years);
+        if (monthNum !== null && !Number.isNaN(yearNum)) {
+          // Create YYYY-MM format (add 1 since months are 0-11)
+          dateKey = `${yearNum}-${String(monthNum + 1).padStart(2, '0')}`;
+        }
+      } else if (p.timestamp) {
+        const day = new Date(p.timestamp).toISOString().split("T")[0];
+        dateKey = day;
+      }
+      
+      if (!dateKey) return;
+      
+      if (!buckets[dateKey]) buckets[dateKey] = { date: dateKey, total: 0, count: 0 };
+      buckets[dateKey].total += Number(p.price) || 0;
+      buckets[dateKey].count += 1;
     });
-    return Object.values(buckets)
+    
+    const result = Object.values(buckets)
       .map((b) => ({ date: b.date, avgPrice: b.count ? b.total / b.count : 0 }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [filteredPrices]);
+    
+    return result;
+  }, [filteredPrices, monthNameToNumber]);
+
+  // Prevailing price by month
+  const prevailingByMonth = useMemo(() => {
+    const monthlyData = {};
+    
+    filteredPrices.forEach((p) => {
+      if (!p || !p.commodity) return;
+      
+      let monthKey = null;
+      let monthName = null;
+      
+      if (p.month !== undefined && p.years) {
+        const monthNum = monthNameToNumber(p.month);
+        const yearNum = Number(p.years);
+        if (monthNum !== null && !Number.isNaN(yearNum)) {
+          monthKey = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
+          monthName = new Date(yearNum, monthNum, 1).toLocaleString('default', { month: 'short', year: 'numeric' });
+        }
+      } else if (p.timestamp) {
+        const d = new Date(p.timestamp);
+        const monthNum = d.getMonth();
+        const yearNum = d.getFullYear();
+        monthKey = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
+        monthName = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+      }
+      
+      if (!monthKey || !monthName) return;
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { month: monthName, prices: [], sortKey: monthKey };
+      }
+      monthlyData[monthKey].prices.push(Number(p.price) || 0);
+    });
+    
+    // Calculate prevailing price for each month
+    const result = Object.values(monthlyData)
+      .map((data) => {
+        const prices = data.prices;
+        const freq = {};
+        let maxFreq = 0;
+        
+        prices.forEach(p => {
+          freq[p] = (freq[p] || 0) + 1;
+          if (freq[p] > maxFreq) maxFreq = freq[p];
+        });
+        
+        const modes = Object.keys(freq).filter(p => freq[p] === maxFreq);
+        let prevailing;
+        
+        if (maxFreq > 1 && modes.length === 1) {
+          prevailing = Number(modes[0]);
+        } else {
+          prevailing = Math.max(...prices);
+        }
+        
+        return {
+          month: data.month,
+          prevailing: prevailing,
+          sortKey: data.sortKey
+        };
+      })
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    
+    return result;
+  }, [filteredPrices, monthNameToNumber]);
+
+  // Price range per commodity per month for selected year
+  const priceRangeData = useMemo(() => {
+    if (selectedYear === "all") {
+      return [];
+    }
+    
+    const commodityMonthData = {};
+    
+    filteredPrices.forEach((p) => {
+      if (!p || !p.commodity) return;
+      
+      const yearNum = Number(p.years);
+      if (Number.isNaN(yearNum) || yearNum !== Number(selectedYear)) return;
+      
+      const monthNum = monthNameToNumber(p.month);
+      if (monthNum === null) return;
+      
+      const monthName = new Date(2000, monthNum, 1).toLocaleString('default', { month: 'short' });
+      const key = `${p.commodity}-${monthNum}`;
+      
+      if (!commodityMonthData[key]) {
+        commodityMonthData[key] = {
+          commodity: p.commodity,
+          month: monthName,
+          monthNum: monthNum,
+          prices: []
+        };
+      }
+      
+      commodityMonthData[key].prices.push(Number(p.price) || 0);
+    });
+    
+    // Calculate min and max for each commodity-month combination
+    const result = Object.values(commodityMonthData)
+      .map((data) => ({
+        commodity: data.commodity,
+        month: data.month,
+        monthNum: data.monthNum,
+        minPrice: Math.min(...data.prices),
+        maxPrice: Math.max(...data.prices),
+        avgPrice: (data.prices.reduce((a, b) => a + b, 0) / data.prices.length).toFixed(2)
+      }))
+      .sort((a, b) => {
+        const commodityCompare = a.commodity.localeCompare(b.commodity);
+        if (commodityCompare !== 0) return commodityCompare;
+        return a.monthNum - b.monthNum;
+      });
+    
+    return result;
+  }, [filteredPrices, selectedYear, monthNameToNumber]);
 
   const topMovers = useMemo(() => {
     const grouped = {};
@@ -263,6 +483,12 @@ export default function Dashboard({ prices }) {
 
   return (
     <div className="dashboard-wrapper">
+      {loading && <div style={{ textAlign: "center", padding: "40px", fontSize: "1.1rem", color: "#64748b" }}>Loading data...</div>}
+      {error && <div style={{ textAlign: "center", padding: "40px", fontSize: "1.1rem", color: "#ef4444" }}>Error: {error}</div>}
+      {!loading && prices.length === 0 && <div style={{ textAlign: "center", padding: "40px", fontSize: "1.1rem", color: "#94a3b8" }}>No data available. Please ensure the server is running.</div>}
+      
+      {!loading && prices.length > 0 && (
+        <>
       {/* QUICK STATS */}
       <div className="dashboard-container">
         <div className="dashboard-section-header">
@@ -313,14 +539,14 @@ export default function Dashboard({ prices }) {
         </div>
       </div>
 
-      {/* FILTERED INSIGHTS */}
+      {/* PRICE TREND FILTERS */}
       <div className="dashboard-container filtered-insights">
         <h3 className="dashboard-section-title">
-          Filtered Insights
+          Prevailing Price Trend by Product
         </h3>
         <div className="filters-wrapper">
           <div className="filter-group">
-            <div className="filter-label">Commodity</div>
+            <div className="filter-label">Product</div>
             <div className="filter-select-wrapper">
               <Filter size={16} color="#94a3b8" />
               <select
@@ -328,7 +554,7 @@ export default function Dashboard({ prices }) {
                 onChange={(e) => setSelectedCommodity(e.target.value)}
                 className="filter-select"
               >
-                <option value="all">All commodities</option>
+                <option value="all">All products</option>
                 {uniqueCommodities.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -337,40 +563,6 @@ export default function Dashboard({ prices }) {
           </div>
 
           <div className="filter-group">
-            <div className="filter-label">Store</div>
-            <div className="filter-select-wrapper">
-              <Filter size={16} color="#94a3b8" />
-              <select
-                value={selectedStore}
-                onChange={(e) => setSelectedStore(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All stores</option>
-                {uniqueStores.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <div className="filter-label">Month</div>
-            <div className="filter-select-wrapper">
-              <Calendar size={16} color="#94a3b8" />
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All months</option>
-                {availableMonths.map((m) => (
-                  <option key={m} value={m}>{new Date(2000, m, 1).toLocaleString("default", { month: "long" })}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="filter-group filter-year">
             <div className="filter-label">Year</div>
             <div className="filter-select-wrapper">
               <Calendar size={16} color="#94a3b8" />
@@ -387,362 +579,118 @@ export default function Dashboard({ prices }) {
             </div>
           </div>
 
-          <div className="filter-group">
-            <div className="filter-label">Date Range</div>
-            <div className="date-range-buttons">
-              {["30d", "90d", "all"].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setDateRange(range)}
-                  className={`date-range-button ${dateRange === range ? 'active' : ''}`}
-                >
-                  <Calendar size={16} />
-                  {range === "30d" && "Last 30d"}
-                  {range === "90d" && "Last 90d"}
-                  {range === "all" && "All time"}
-                </button>
-              ))}
+          <div className="filter-group filter-year">
+            <div className="filter-label">Month</div>
+            <div className="filter-select-wrapper">
+              <Calendar size={16} color="#94a3b8" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All months</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>{new Date(2000, m, 1).toLocaleString("default", { month: "long" })}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
         <div className="filter-tag">Filtered: {filterLabel}</div>
 
-        <div className="charts-grid-2col">
-          <div className="chart-container">
-            <div className="chart-header">
-              <div className="chart-title">Average Price Timeline</div>
-              <button onClick={() => downloadChart(timelineChartRef, "PriceTimeline")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <div ref={timelineChartRef}>
-              {timeSeriesData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={timeSeriesData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: "0.8rem" }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Avg Price (₱)", angle: -90, position: "insideLeft" }} />
-                  <Tooltip formatter={(value) => `₱${value.toFixed ? value.toFixed(2) : value}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
-                  <Line type="monotone" dataKey="avgPrice" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="no-data-message">No trend data available</div>
-            )}
-            </div>
+        <div className="chart-container" style={{ marginTop: "24px" }}>
+          <div className="chart-header">
+            <div className="chart-title">Prevailing Price Trend Over Time</div>
+            <button onClick={() => downloadChart(timelineChartRef, "PrevailingPriceTrend")} className="chart-download-button" title="Download chart">
+              <Download size={14} />
+            </button>
           </div>
-
-          <div className="chart-container">
-            <div className="chart-header">
-              <div className="chart-title">Compliance Snapshot</div>
-              <button onClick={() => downloadChart(complianceChartRef, "ComplianceSnapshot")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <div ref={complianceChartRef}>
-              {complianceBreakdown.some((c) => c.value > 0) ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={complianceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {complianceBreakdown.map((entry, index) => (
-                      <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value} items`, name]} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+          <div ref={timelineChartRef}>
+            {timeSeriesData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={timeSeriesData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Prevailing Price (Php)", angle: -90, position: "insideLeft" }} />
+                <Tooltip formatter={(value) => `Php ${value.toFixed ? value.toFixed(2) : value}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
+                <Legend />
+                <Line type="monotone" dataKey="avgPrice" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Prevailing Price" />
+              </LineChart>
+            </ResponsiveContainer>
             ) : (
-              <div className="no-data-message">No compliance data yet</div>
-            )}
-            </div>
-          </div>
-        </div>
-
-        <div className="charts-grid-2col-margin">
-          <div className="chart-container">
-            <div className="chart-header">
-              <div className="chart-title">SRP vs Current (Top 10)</div>
-              <button onClick={() => downloadChart(srpChartRef, "SRPvsCurrent")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <div ref={srpChartRef}>
-              {srpVsCurrentData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={srpVsCurrentData} margin={{ bottom: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="commodity" stroke="#64748b" style={{ fontSize: "0.75rem" }} angle={-35} textAnchor="end" height={60} />
-                  <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }} />
-                  <Tooltip formatter={(value) => `₱${value}`} />
-                  <Legend />
-                  <Bar dataKey="current" name="Current" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="srp" name="SRP" fill="#94a3b8" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="no-data-message">No SRP comparison data</div>
-            )}
-            </div>
-          </div>
-
-          <div className="chart-container">
-            <div className="top-movers-container">Top Movers</div>
-            {topMovers.topUp.length === 0 && topMovers.topDown.length === 0 ? (
-              <div className="no-data-small">No change detected</div>
-            ) : (
-              <div className="top-movers-grid">
-                <div>
-                  <div className="top-movers-column-title top-movers-upticks">Largest Upticks</div>
-                  {topMovers.topUp.map((item) => (
-                    <div key={item.key} className="extreme-item up">
-                      <div className="extreme-item-title">{item.key.replace("_", " • ")}</div>
-                      <div className="extreme-item-value">+₱{item.change.toFixed(2)}</div>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div className="top-movers-column-title top-movers-drops">Largest Drops</div>
-                  {topMovers.topDown.map((item) => (
-                    <div key={item.key} className="extreme-item down">
-                      <div className="extreme-item-title">{item.key.replace("_", " • ")}</div>
-                      <div className="extreme-item-value">₱{item.change.toFixed(2)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* PREVAILING PRICES */}
-      <div className="dashboard-container prevailing">
-        <div className="chart-header" style={{ marginBottom: "12px" }}>
-          <div>
-            <h3 className="dashboard-section-title">
-              Prevailing Prices for the Month
-            </h3>
-          </div>
-          <button onClick={() => downloadChart(prevailingChartRef, "PrevailingPrices")} className="chart-download-button" title="Download chart">
-            <Download size={14} />
-          </button>
-        </div>
-        <div className="filter-tag">Filtered: {filterLabel}</div>
-        <div ref={prevailingChartRef}>
-          <div className="prevailing-cards-grid">
-            {prevailingPrices.length > 0 ? (
-              prevailingPrices.map((item, idx) => (
-                <div key={idx} className="prevailing-card">
-                  <div className="prevailing-card-content">
-                    <div className="commodity-info">
-                      <div className="commodity-label">
-                        {item.commodity}
-                      </div>
-                      <div className="commodity-price">
-                        ₱{item.prevailing}
-                      </div>
-                    </div>
-                    <div className="commodity-meta">
-                      <div>SRP: ₱{item.srp}</div>
-                      <div className="commodity-meta-item">{item.count} stores</div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ gridColumn: "1/-1" }} className="no-data-small">
-                No data available yet
-              </div>
+            <div className="no-data-message">No trend data available. Select a product or adjust filters.</div>
             )}
           </div>
         </div>
 
-        {/* Prevailing Prices Comparison Chart */}
-        {prevailingPrices.length > 0 && (
-          <div className="comparison-chart-wrapper">
-            <h4 className="dashboard-subsection-title">
-              Prevailing vs SRP Comparison
-            </h4>
-            <div className="comparison-chart-button">
-              <button onClick={() => downloadChart(prevailingChartRef, "PrevailingComparison")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={prevailingPrices}>
+        {/* PREVAILING PRICE BY MONTH */}
+        <div className="chart-container" style={{ marginTop: "24px" }}>
+          <div className="chart-header">
+            <div className="chart-title">Prevailing Price for the Month</div>
+            <button onClick={() => downloadChart(prevailingChartRef, "PrevailingPriceByMonth")} className="chart-download-button" title="Download chart">
+              <Download size={14} />
+            </button>
+          </div>
+          <div ref={prevailingChartRef}>
+            {prevailingByMonth.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={prevailingByMonth} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Prevailing Price (Php)", angle: -90, position: "insideLeft" }} />
+                <Tooltip formatter={(value) => `Php ${value.toFixed ? value.toFixed(2) : value}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
+                <Legend />
+                <Bar dataKey="prevailing" fill="#10b981" name="Prevailing Price" />
+              </BarChart>
+            </ResponsiveContainer>
+            ) : (
+            <div className="no-data-message">No monthly prevailing price data available.</div>
+            )}
+          </div>
+        </div>
+
+        {/* PRICE RANGE PER COMMODITY PER MONTH */}
+        {selectedYear !== "all" && (
+        <div className="chart-container" style={{ marginTop: "24px" }}>
+          <div className="chart-header">
+            <div className="chart-title">Price Range per Commodity per Month ({selectedYear})</div>
+            <button onClick={() => downloadChart(srpChartRef, "PriceRangeByCommodity")} className="chart-download-button" title="Download chart">
+              <Download size={14} />
+            </button>
+          </div>
+          <div ref={srpChartRef}>
+            {priceRangeData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={priceRangeData} margin={{ top: 5, right: 30, left: 0, bottom: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 
                   dataKey="commodity" 
-                  stroke="#64748b"
-                  style={{ fontSize: "0.85rem" }}
+                  stroke="#64748b" 
+                  style={{ fontSize: "0.75rem" }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
                 />
-                <YAxis 
-                  stroke="#64748b"
-                  style={{ fontSize: "0.85rem" }}
-                  label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }}
-                />
+                <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Price (Php)", angle: -90, position: "insideLeft" }} />
                 <Tooltip 
-                  formatter={(value) => `₱${value}`}
-                  contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }}
+                  formatter={(value) => `Php ${value.toFixed ? value.toFixed(2) : value}`} 
+                  contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} 
                 />
                 <Legend />
-                <Bar dataKey="prevailing" fill="#38bdf8" radius={[8, 8, 0, 0]} name="Prevailing Price" />
-                <Bar dataKey="srp" fill="#94a3b8" radius={[8, 8, 0, 0]} name="SRP" />
+                <Bar dataKey="minPrice" fill="#3b82f6" name="Min Price" />
+                <Bar dataKey="maxPrice" fill="#ef4444" name="Max Price" />
+                <Bar dataKey="avgPrice" fill="#f59e0b" name="Avg Price" />
               </BarChart>
             </ResponsiveContainer>
+            ) : (
+            <div className="no-data-message">No price range data available. Please select a specific year.</div>
+            )}
           </div>
+        </div>
         )}
       </div>
-
-      {/* PRICE TREND VISUALIZATION */}
-      <div className="dashboard-container trends">
-        <div className="chart-header" style={{ marginBottom: "12px" }}>
-          <div>
-            <h3 className="dashboard-section-title">
-              Price Trends by Location
-            </h3>
-          </div>
-          <button onClick={() => downloadChart(municipalityChartRef, "PriceTrends")} className="chart-download-button" title="Download chart">
-            <Download size={14} />
-          </button>
-        </div>
-        <div className="filter-tag">Filtered: {filterLabel}</div>
-        <div ref={municipalityChartRef}>
-          {municipalityTrends.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={municipalityTrends}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                dataKey="municipality" 
-                stroke="#64748b"
-                style={{ fontSize: "0.85rem" }}
-              />
-              <YAxis 
-                stroke="#64748b"
-                style={{ fontSize: "0.85rem" }}
-                label={{ value: "Avg Price (₱)", angle: -90, position: "insideLeft" }}
-              />
-              <Tooltip 
-                formatter={(value) => `₱${value}`}
-                contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="avgPrice" 
-                stroke="#0f172a" 
-                strokeWidth={2}
-                dot={{ fill: "#38bdf8", r: 5 }}
-                activeDot={{ r: 7 }}
-                name="Average Price"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          ) : (
-          <div className="no-data-message">
-            No data available for visualization
-          </div>
-          )}
-        </div>
-      </div>
-
-      {/* TOP 5 PRICE EXTREMES */}
-      <div className="dashboard-container extremes">
-        <h3 className="dashboard-section-title" style={{ marginBottom: "16px" }}>
-          Top 5 Price Extremes
-        </h3>
-        <div className="filter-tag">Filtered: {filterLabel}</div>
-        <div className="charts-grid-equal">
-          
-          {/* Highest Prices Chart */}
-          <div>
-            <div className="price-extreme-header">
-              <h4 className="price-extreme-title highest">
-                <ArrowUp size={16} /> Highest Prices
-              </h4>
-              <button onClick={() => downloadChart(highestChartRef, "HighestPrices")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <div ref={highestChartRef}>
-              {highest.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={highest}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis 
-                      dataKey="commodity" 
-                      stroke="#64748b"
-                      style={{ fontSize: "0.75rem" }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis 
-                      stroke="#64748b"
-                      style={{ fontSize: "0.85rem" }}
-                      label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }}
-                    />
-                    <Tooltip 
-                      formatter={(value) => `₱${value}`}
-                      contentStyle={{ background: "#fee2e2", border: "1px solid #dc2626", borderRadius: "8px" }}
-                    />
-                    <Bar dataKey="price" fill="#dc2626" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="no-data-message">
-                  No data available
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Lowest Prices Chart */}
-          <div>
-            <div className="price-extreme-header">
-              <h4 className="price-extreme-title lowest">
-                <ArrowDown size={16} /> Lowest Prices
-              </h4>
-              <button onClick={() => downloadChart(lowestChartRef, "LowestPrices")} className="chart-download-button" title="Download chart">
-                <Download size={14} />
-              </button>
-            </div>
-            <div ref={lowestChartRef}>
-              {lowest.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={lowest}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="commodity" 
-                    stroke="#64748b"
-                    style={{ fontSize: "0.75rem" }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis 
-                    stroke="#64748b"
-                    style={{ fontSize: "0.85rem" }}
-                    label={{ value: "Price (₱)", angle: -90, position: "insideLeft" }}
-                  />
-                  <Tooltip 
-                    formatter={(value) => `₱${value}`}
-                    contentStyle={{ background: "#dcfce7", border: "1px solid #16a34a", borderRadius: "8px" }}
-                  />
-                  <Bar dataKey="price" fill="#16a34a" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              ) : (
-              <div className="no-data-message">
-                No data available
-              </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

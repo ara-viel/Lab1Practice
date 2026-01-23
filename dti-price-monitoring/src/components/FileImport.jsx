@@ -7,6 +7,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [importedData, setImportedData] = useState(null);
+  const [category, setCategory] = useState("");
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -35,10 +36,14 @@ export default function FileImport({ onImportSuccess, onClose }) {
 
   const handleConfirmImport = async () => {
     if (!importedData) return;
+    if (!category) {
+      setMessage({ type: "error", text: "Please select a category before importing." });
+      return;
+    }
 
     setLoading(true);
     try {
-      await onImportSuccess(importedData);
+      await onImportSuccess(importedData, category);
       setMessage({
         type: "success",
         text: `${importedData.length} records imported successfully!`
@@ -101,6 +106,36 @@ export default function FileImport({ onImportSuccess, onClose }) {
           >
             <X size={24} color="#64748b" />
           </button>
+        </div>
+
+        {/* Category Select */}
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ display: "block", fontWeight: 600, color: "#0f172a", marginBottom: "8px" }}>
+            Select Category
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              background: "white",
+              fontWeight: 600,
+              color: "#0f172a"
+            }}
+          >
+            <option value="">-- Choose Category --</option>
+            <option value="Basic Necessities">Basic Necessities</option>
+            <option value="Prime Commodities">Prime Commodities</option>
+            <option value="Construction Materials">Construction Materials</option>
+            <option value="Medical Supplies">Medical Supplies</option>
+            <option value="Noche Buena">Noche Buena</option>
+            <option value="Agri Products">Agri Products</option>
+            <option value="School Supplies">School Supplies</option>
+          </select>
         </div>
 
         {/* File Input */}
@@ -195,15 +230,15 @@ export default function FileImport({ onImportSuccess, onClose }) {
           </button>
           <button
             onClick={handleConfirmImport}
-            disabled={!importedData || loading}
+            disabled={!importedData || loading || !category}
             style={{
               padding: "10px 16px",
               borderRadius: "8px",
               border: "none",
-              background: importedData && !loading ? "#0f172a" : "#cbd5e1",
+              background: importedData && category && !loading ? "#0f172a" : "#cbd5e1",
               color: "white",
               fontWeight: "600",
-              cursor: importedData && !loading ? "pointer" : "not-allowed",
+              cursor: importedData && category && !loading ? "pointer" : "not-allowed",
               fontSize: "0.9rem"
             }}
           >

@@ -6,26 +6,25 @@ import Inquiry from "./components/Inquiry.jsx";
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
 import DataManagement from './components/DataManagement.jsx';
-import BasicNecessities from './components/BasicNecessities.jsx';
-import PrimeCommodities from './components/PrimeCommodities.jsx';
-// Optional: npm install lucide-react
-import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as MenuIcon, Upload, Database, ArrowUp } from 'lucide-react';
+
+import { LayoutDashboard, Activity, FileSearch, FileText, Menu as MenuIcon, Database, ArrowUp } from 'lucide-react';
+import './assets/App.css';
 
 function App() {
   const [prices, setPrices] = useState([]);
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('activeTab') || "dashboard";
-  });
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [showImport, setShowImport] = useState(false);
   const [isDataMgmtOpen, setIsDataMgmtOpen] = useState(false);
   const [dataMgmtTab, setDataMgmtTab] = useState("basic");
-  const [form, setForm] = useState({
-    commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: ""
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [form, setForm] = useState({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
+
+  useEffect(() => { localStorage.setItem("activeTab", activeTab); }, [activeTab]);
+  useEffect(() => { if (activeTab !== "dataManagement") setIsDataMgmtOpen(false); }, [activeTab]);
 
   const loadData = async () => {
     const data = await getPriceData();
-    setPrices(data);
+    setPrices(data || []);
   };
 
   useEffect(() => { loadData(); }, []);
@@ -47,18 +46,13 @@ function App() {
     });
     setForm({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
     loadData();
-    setActiveTab("dashboard"); // Redirect to overview after saving
+    setActiveTab("dashboard");
   };
 
-  const handleImportSuccess = async (importedData) => {
-    // Add each imported record to the database
+  const handleImportSuccess = async (importedData, category) => {
     for (const record of importedData) {
-      // Normalize keys to lowercase to handle case-insensitive imports
-      const normalizedRecord = {};
-      Object.keys(record).forEach(key => {
-        normalizedRecord[key.toLowerCase()] = record[key];
-      });
-      
+      const normalized = {};
+      Object.keys(record || {}).forEach(k => normalized[k.toLowerCase()] = record[k]);
       await addPriceData({
         brand: normalizedRecord.brand || '',
         commodity: normalizedRecord.commodity || 'Unknown',
@@ -71,7 +65,7 @@ function App() {
         timestamp: normalizedRecord.timestamp || new Date().toISOString()
       });
     }
-    loadData();
+    loadData(); // Reload all data
   };
 
   const handleDeleteData = async (id) => {
@@ -94,44 +88,27 @@ function App() {
     }
   };
 
-  const handleSelectDataMgmtTab = (subTab) => {
-    setActiveTab("dataManagement");
-    setDataMgmtTab(subTab);
-    setIsDataMgmtOpen(true);
-  };
+  const handleSelectDataMgmtTab = (subTab) => { setActiveTab("dataManagement"); setDataMgmtTab(subTab); setIsDataMgmtOpen(true); };
 
-  // SCROLL TO TOP FUNCTION
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
-  };
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // --- PREVAILING PRICE CALCULATION ---
   const calculatePrevailing = () => {
     const grouped = prices.reduce((acc, item) => {
       if (!acc[item.commodity]) acc[item.commodity] = [];
       acc[item.commodity].push(item);
       return acc;
     }, {});
-
     return Object.keys(grouped).map(name => {
       const items = grouped[name];
       const pList = items.map(i => i.price);
-      const srp = items[0].srp || 0;
+      const srp = items[0]?.srp || 0;
       const freq = {};
       let maxFreq = 0;
-      pList.forEach(p => { 
-        freq[p] = (freq[p] || 0) + 1; 
-        if(freq[p] > maxFreq) maxFreq = freq[p]; 
-      });
+      pList.forEach(p => { freq[p] = (freq[p] || 0) + 1; if (freq[p] > maxFreq) maxFreq = freq[p]; });
       const modes = Object.keys(freq).filter(p => freq[p] === maxFreq);
-
       let prevailing;
-      if (maxFreq > 1 && modes.length === 1) {
-        prevailing = Number(modes[0]);
-      } else {
+      if (maxFreq > 1 && modes.length === 1) prevailing = Number(modes[0]);
+      else {
         const validUnderSRP = pList.filter(p => p <= srp);
         prevailing = validUnderSRP.length > 0 ? Math.max(...validUnderSRP) : Math.max(...pList);
       }
@@ -144,7 +121,7 @@ function App() {
   const tabLabels = {
     dashboard: "Dashboard",
     monitoring: "Monitoring",
-    "comparative price analysis": "Comparative Price Analysis",
+    comparativepriceanalysis: "Comparative Price Analysis",
     inquiry: "Letter of Inquiry",
     dataManagement: "Data Management"
   };
@@ -204,69 +181,60 @@ function App() {
   };
 
   return (
-    <div style={{ display: "flex", fontFamily: "'Inter', sans-serif" }}>
-      {/* SIDEBAR */}
-      <div style={sidebarStyle}>
-        <div style={{ padding: "32px 24px", display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ background: "#38bdf8", padding: "6px", borderRadius: "8px" }}>
+    <div className="app-root" style={{ ['--sidebar-width']: sidebarWidth, ['--content-padding']: contentPadding, ['--content-maxwidth']: contentMaxWidth }}>
+      <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-header">
+          <button className="icon-btn" onClick={() => setIsSidebarCollapsed(prev => !prev)} aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <MenuIcon size={20} color="#0f172a" />
-          </div>
-          <span style={{ fontWeight: "800", fontSize: "1.2rem", letterSpacing: "-0.5px" }}>DTI MONITOR</span>
+          </button>
+          {!isSidebarCollapsed && <span className="brand">DTI MONITOR</span>}
         </div>
-        
-        <div style={{ flex: 1 }}>
-          <button style={navItemStyle(activeTab === "dashboard")} onClick={() => setActiveTab("dashboard")}>
-            <LayoutDashboard size={18} /> Dashboard
+
+        <nav className="nav-list">
+          <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <span className="icon"><LayoutDashboard size={18} /></span>
+            <span className="nav-label">Dashboard</span>
           </button>
-          <button style={navItemStyle(activeTab === "monitoring")} onClick={() => setActiveTab("monitoring")}>
-            <Activity size={18} /> Monitoring
+          <button className={`nav-item ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
+            <span className="icon"><Activity size={18} /></span>
+            <span className="nav-label">Monitoring</span>
           </button>
-          <button style={navItemStyle(activeTab === "comparative price analysis")} onClick={() => setActiveTab("comparative price analysis")}>
-            <FileSearch size={18} /> Comparative Price Analysis
+          <button className={`nav-item ${activeTab === 'comparative price analysis' ? 'active' : ''}`} onClick={() => setActiveTab('comparative price analysis')}>
+            <span className="icon"><FileSearch size={18} /></span>
+            <span className="nav-label">Comparative Price Analysis</span>
           </button>
-          <button style={navItemStyle(activeTab === "inquiry")} onClick={() => setActiveTab("inquiry")}>
-            <FileText size={18} /> Letter of Inquiry
+          <button className={`nav-item ${activeTab === 'inquiry' ? 'active' : ''}`} onClick={() => setActiveTab('inquiry')}>
+            <span className="icon"><FileText size={18} /></span>
+            <span className="nav-label">Letter of Inquiry</span>
           </button>
-          <button
-            style={navItemStyle(activeTab === "dataManagement")}
-            onClick={() => {
-              setActiveTab("dataManagement");
-              setIsDataMgmtOpen((prev) => !prev);
-            }}
-          >
-            <Database size={18} /> Data Management
+          <button className={`nav-item ${activeTab === 'dataManagement' ? 'active' : ''}`} onClick={() => { setActiveTab('dataManagement'); setIsDataMgmtOpen(prev => !prev); }}>
+            <span className="icon"><Database size={18} /></span>
+            <span className="nav-label">Data Management</span>
           </button>
+
           {isDataMgmtOpen && (
             <div>
-              <button
-                style={subNavItemStyle(dataMgmtTab === "basic")}
-                onClick={() => handleSelectDataMgmtTab("basic")}
-              >
-                Basic Necessities
+              <button className={`sub-nav-item ${dataMgmtTab === 'basic' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('basic')}>
+                <span>Basic Necessities</span>
               </button>
-              <button
-                style={subNavItemStyle(dataMgmtTab === "prime")}
-                onClick={() => handleSelectDataMgmtTab("prime")}
-              >
-                Prime Commodities
+              <button className={`sub-nav-item ${dataMgmtTab === 'prime' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('prime')}>
+                <span>Prime Commodities</span>
+              </button>
+              <button className={`sub-nav-item ${dataMgmtTab === 'others' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('others')}>
+                <span>Other Categories</span>
               </button>
             </div>
           )}
-        </div>
+        </nav>
 
-        <div style={{ padding: "20px", borderTop: "1px solid #1e293b", fontSize: "0.75rem", color: "#475569" }}>
-          v1.0.4 • System Stable
-        </div>
-      </div>
+        <div className="sidebar-footer">v1.0.4 • System Stable</div>
+      </aside>
 
-      {/* MAIN CONTENT */}
-      <div style={contentStyle}>
-        <header style={{ marginBottom: "32px" }}>
+      <main className="content">
+        <header className="content-header">
           <div>
-            <h1 style={{ margin: 0, fontSize: "1.8rem", color: "#0f172a", fontWeight: "800" }}>
-              {tabLabels[activeTab] || ""}
-            </h1>
-            <p style={{ margin: "4px 0 0 0", color: "#64748b" }}>Welcome back, Monitoring Officer</p>
+            <h1 className="header-title">{tabLabels[activeTab] || ''}</h1>
+            <p className="header-sub">Welcome back, Monitoring Officer</p>
           </div>
         </header>
 
@@ -274,7 +242,7 @@ function App() {
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
-          {activeTab === "inquiry" && <Inquiry prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && (
             <DataManagement 
               prices={prices} 
@@ -285,61 +253,15 @@ function App() {
             />
           )}
         </div>
-      </div>
+      </main>
 
-      {/* FILE IMPORT MODAL */}
-      {showImport && (
-        <FileImport 
-          onImportSuccess={handleImportSuccess}
-          onClose={() => setShowImport(false)}
-        />
-      )}
+      {showImport && <FileImport onImportSuccess={handleImportSuccess} onClose={() => setShowImport(false)} />}
 
-      {/* Back to Top Button - Fixed at Bottom */}
-      <div style={{ textAlign: "right", paddingTop: "16px", paddingBottom: "16px", paddingRight: "0px", borderTop: "none", position: "fixed", bottom: 0, right: 0, background: "none", width: "calc(80% - 250px)" }}>
-        <button
-          onClick={scrollToTop}
-          title="Back to Top"
-          style={{
-            background: "none",
-            border: "none",
-            padding: "8px 16px",
-            borderRadius: "none",
-            cursor: "pointer",
-            display: "flex",
-            float: "right",
-            alignItems: "center",
-            gap: "6px",
-            fontWeight: "600",
-            color: "#0f172a"
-          }}
-        >
-          <ArrowUp size={30} />
-        </button>
+      <div className="back-to-top">
+        <button onClick={scrollToTop} title="Back to Top"><ArrowUp size={30} /></button>
       </div>
     </div>
   );
 }
-
-// Reusable Button Styles
-const primaryButtonStyle = {
-  background: "#0f172a",
-  color: "white",
-  border: "none",
-  padding: "10px 18px",
-  borderRadius: "8px",
-  fontWeight: "600",
-  cursor: "pointer"
-};
-
-const secondaryButtonStyle = {
-  background: "white",
-  color: "#0f172a",
-  border: "1px solid #e2e8f0",
-  padding: "10px 18px",
-  borderRadius: "8px",
-  fontWeight: "600",
-  cursor: "pointer"
-};
 
 export default App;
