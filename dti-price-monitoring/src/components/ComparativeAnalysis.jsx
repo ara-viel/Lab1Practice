@@ -261,9 +261,9 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         item.commodity,
         item.size || "--",
         item.store,
-        `₱${item.prevailingPrice?.toFixed(2) || "0.00"}`,
-        `₱${typeof item.srp === "number" ? item.srp.toFixed(2) : (item.srp ? Number(item.srp).toFixed(2) : "--")}`,
-        `₱${item.currentPrice?.toFixed(2) || "0.00"}`,
+        `${Number(item.prevailingPrice) === 0 || Number.isNaN(Number(item.prevailingPrice)) ? "--" : `₱${Number(item.prevailingPrice).toFixed(2)}`}`,
+        `${Number(item.srp) === 0 || Number.isNaN(Number(item.srp)) ? "--" : `₱${Number(item.srp).toFixed(2)}`}`,
+        `${Number(item.currentPrice) === 0 || Number.isNaN(Number(item.currentPrice)) ? "--" : `₱${Number(item.currentPrice).toFixed(2)}`}`,
         `${item.priceChange > 0 ? "+" : ""}₱${item.priceChange?.toFixed(2) || "0.00"}`,
         `${item.percentChange > 0 ? "+" : ""}${item.percentChange?.toFixed(1) || "0.0"}%`,
         item.isCompliant ? "Compliant" : "Non-Compliant"
@@ -480,14 +480,24 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
                         <div style={{ color: "#475569" }}>{item.store}</div>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: "1rem", fontWeight: "600" }}>₱{(item.prevailingPrice || 0).toFixed(2)}</span>
+                        <span style={{ fontSize: "1rem", fontWeight: "600" }}>
+                          {Number(item.prevailingPrice) === 0 || Number.isNaN(Number(item.prevailingPrice))
+                            ? "--"
+                            : `₱${Number(item.prevailingPrice).toFixed(2)}`}
+                        </span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ color: "#64748b" }}>₱{typeof item.srp === 'number' ? item.srp.toFixed(2) : (item.srp ? Number(item.srp).toFixed(2) : "--")}</span>
+                        <span style={{ color: "#64748b" }}>
+                          {Number(item.srp) === 0 || Number.isNaN(Number(item.srp))
+                            ? "--"
+                            : `₱${Number(item.srp).toFixed(2)}`}
+                        </span>
                       </td>
                       <td style={tdStyle}>
                         <span style={{ fontSize: "1.05rem", fontWeight: "600", color: isCompliant ? "#22c55e" : "#ef4444" }}>
-                          ₱{(item.currentPrice || 0).toFixed(2)}
+                          {Number(item.currentPrice) === 0 || Number.isNaN(Number(item.currentPrice))
+                            ? "--"
+                            : `₱${Number(item.currentPrice).toFixed(2)}`}
                         </span>
                       </td>
                       <td style={tdStyle}>
@@ -597,9 +607,9 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
                       <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                         <td style={modalTdStyle}>{row.commodity}</td>
                         <td style={modalTdStyle}>{row.store}</td>
-                        <td style={modalTdStyle}>₱{(row.prevailingPrice || 0).toFixed(2)}</td>
-                        <td style={modalTdStyle}>₱{typeof row.srp === "number" ? row.srp.toFixed(2) : (row.srp ? Number(row.srp).toFixed(2) : "--")}</td>
-                        <td style={modalTdStyle}>₱{(row.currentPrice || 0).toFixed(2)}</td>
+                        <td style={modalTdStyle}>{Number(row.prevailingPrice) === 0 || Number.isNaN(Number(row.prevailingPrice)) ? "--" : `₱${Number(row.prevailingPrice).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>{Number(row.srp) === 0 || Number.isNaN(Number(row.srp)) ? "--" : `₱${Number(row.srp).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>{Number(row.currentPrice) === 0 || Number.isNaN(Number(row.currentPrice)) ? "--" : `₱${Number(row.currentPrice).toFixed(2)}`}</td>
                         <td style={modalTdStyle}>
                           <span style={getBadgeStyle(row.isCompliant ? "compliant" : "non-compliant")}>
                             {row.isCompliant ? "Compliant" : "Non-Compliant"}

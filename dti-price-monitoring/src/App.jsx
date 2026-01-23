@@ -13,7 +13,9 @@ import { LayoutDashboard, Activity, FileSearch, FileText, BarChart2, Menu as Men
 
 function App() {
   const [prices, setPrices] = useState([]);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('activeTab') || "dashboard";
+  });
   const [showImport, setShowImport] = useState(false);
   const [isDataMgmtOpen, setIsDataMgmtOpen] = useState(false);
   const [dataMgmtTab, setDataMgmtTab] = useState("basic");
@@ -27,6 +29,10 @@ function App() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -268,6 +274,7 @@ function App() {
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "inquiry" && <Inquiry prices={prices} prevailingReport={prevailingReport} />}
           {activeTab === "dataManagement" && (
             <DataManagement 
               prices={prices} 

@@ -22,8 +22,8 @@ export default function Inquiry({ prices }) {
       const srp = Number(p.srp || 0);
       const price = Number(p.price || 0);
       if (srp <= 0) return false;
-      // Flagged if price exceeds SRP by 10% or more, OR falls 10% or more below SRP
-      return price >= srp * 1.10 || price <= srp * 0.90;
+      // Flagged if price exceeds SRP
+      return price > srp;
     }),
     [prices]
   );
@@ -233,6 +233,7 @@ ${blankRows}
                 <th style={thStyle}>Store</th>
                 <th style={thStyle}>Municipality</th>
                 <th style={thStyle}>Price</th>
+                <th style={thStyle}>Previous Month Price</th>
                 <th style={thStyle}>SRP</th>
                 <th style={thStyle}>Variance</th>
                 <th style={thStyle}>Change %</th>
@@ -242,10 +243,16 @@ ${blankRows}
             <tbody>
               {flaggedItems.length === 0 && (
                 <tr>
-                  <td colSpan="8" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
+                  <td colSpan="9" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
                 </tr>
               )}
               {flaggedItems.map((p, idx) => {
+                const previousMonthPrice = prices.find(item => 
+                  item.commodity === p.commodity &&
+                  item.store === p.store &&
+                  item.id !== p.id
+                );
+                const prevPrice = previousMonthPrice ? Number(previousMonthPrice.price || 0) : 0;
                 const v = Number(p.price || 0) - Number(p.srp || 0);
                 const percentChange = Number(p.srp || 0) > 0 ? ((v / Number(p.srp)) * 100) : 0;
                 const storeKey = p.store || "Unknown";
@@ -259,6 +266,7 @@ ${blankRows}
                     <td style={tdStyle}>{p.store || "--"}</td>
                     <td style={tdStyle}>{p.municipality || "--"}</td>
                     <td style={tdStyle}>{formatCurrency(p.price)}</td>
+                    <td style={tdStyle}>{prevPrice > 0 ? formatCurrency(prevPrice) : "--"}</td>
                     <td style={tdStyle}>{formatCurrency(p.srp)}</td>
                     <td style={{ ...tdStyle, color: varianceColor }}>{formatCurrency(v)}</td>
                     <td style={{ ...tdStyle, color: changeColor, fontWeight: "600" }}>
@@ -304,24 +312,21 @@ ${blankRows}
 
         <div style={{ marginTop: "12px" }}>
           <label style={labelStyle}>Letter Body</label>
-          <textarea
-            name="content"
-            value={letter.content}
-            onChange={handleLetterChange}
-            rows={14}
-            style={{ ...inputStyle, minHeight: "240px", fontFamily: "'Inter', sans-serif" }}
-            placeholder="Auto-generated letter will appear here."
+          <div
+            style={{
+              ...inputStyle,
+              minHeight: "240px",
+              fontFamily: "'Times New Roman', serif",
+              overflow: "auto",
+              background: "#fafafa",
+              lineHeight: "1.6",
+              padding: "12px"
+            }}
+            dangerouslySetInnerHTML={{ __html: letter.content || "<p style='color: #94a3b8;'>Auto-generated letter will appear here.</p>" }}
           />
         </div>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "12px" }}>
-          <button
-            onClick={() => generateContent(selectedItems)}
-            style={{ ...buttonStyle, background: "#e2e8f0", color: "#0f172a" }}
-            disabled={selectedIds.length === 0}
-          >
-            Regenerate Letter
-          </button>
           <button
             onClick={printLetter}
             style={{ ...buttonStyle, background: "#0f172a", color: "white" }}

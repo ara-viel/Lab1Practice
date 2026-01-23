@@ -484,7 +484,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                         <span className="dm-text-secondary">{item.month || "N/A"}</span>
                       </td>
                       <td className="dm-table-td">
-                        <span className="dm-text-price">₱{Number(item.price).toFixed(2)}</span>
+                        <span className="dm-text-price">{(Number(item.price) === 0 || Number.isNaN(Number(item.price))) ? "--" : `₱${Number(item.price).toFixed(2)}`}</span>
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-secondary">{item.srp ? `₱${Number(item.srp).toFixed(2)}` : "--"}</span>
