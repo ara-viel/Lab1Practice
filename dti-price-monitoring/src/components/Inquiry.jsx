@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
+import { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } from "docx";
 
 const formatCurrency = (value) => `\u20b1${Number(value || 0).toFixed(2)}`;
 
@@ -115,14 +117,14 @@ export default function Inquiry({ prices }) {
         
         <table class="obs-table">
           <tr>
-            <th style="width: 15%;">Commodity</th>
-            <th style="width: 12%;">Brand</th>
-            <th style="width: 10%;">Size</th>
-            <th style="width: 10%;">SRP</th>
-            <th style="width: 12%;">Previous Month Price</th>
-            <th style="width: 12%;">Monitored Price</th>
-            <th style="width: 10%;">Variance</th>
-            <th style="width: 19%;">Remarks</th>
+            <th style="width: 12%;">Commodity</th>
+            <th style="width: 10%;">Brand</th>
+            <th style="width: 8%;">Size</th>
+            <th style="width: 8%;">SRP</th>
+            <th style="width: 10%;">Previous Month Price</th>
+            <th style="width: 10%;">Monitored Price</th>
+            <th style="width: 8%;">Variance</th>
+            <th style="width: 34%;">Remarks</th>
           </tr>
 ${commodityRows}
 ${blankRows}
@@ -154,8 +156,9 @@ ${blankRows}
         <head>
           <title>${letter.subject}</title>
           <style>
-            @page { margin: 0.5in; }
-            body { font-family: 'Times New Roman', Times, serif; margin: 20px; line-height: 1.4; font-size: 13px; }
+            @page { margin: 0.5in; size: 8.5in 11in; }
+            body { font-family: 'Times New Roman', Times, serif; margin: 0; padding: 20px; line-height: 1.4; font-size: 13px; }
+            .container { max-width: 7.5in; margin: 0 auto; }
             .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
             .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
             .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
@@ -165,6 +168,94 @@ ${blankRows}
             .letter-body u { text-decoration: underline; }
             .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; }
             .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; }
+            .obs-table th { background: #f0f0f0; font-weight: bold; }
+            .signature { margin-top: 25px; }
+            .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
+            .sig-title { margin-top: 3px; }
+            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; }
+            .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 13px; }
+            .received-field { display: flex; margin-bottom: 10px; font-size: 13px; }
+            .received-field label { width: 180px; }
+            .received-field .line { flex: 1; border-bottom: 1px solid #000; margin-left: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <table class="form-table">
+                <tr>
+                  <td class="form-label" rowspan="3">FORM</td>
+                  <td style="width: 60px;">Code</td>
+                  <td style="width: 100px; text-align: center;">FM-PSM-03</td>
+                </tr>
+                <tr>
+                  <td>Rev.</td>
+                  <td style="text-align: center;">01</td>
+                </tr>
+                <tr>
+                  <td>Date</td>
+                  <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
+                </tr>
+              </table>
+              <div style="text-align: right;">
+                <img src="/dti-logo.png" alt="DTI Logo" style="height: 60px;" onerror="this.style.display='none'" />
+              </div>
+            </div>
+            ${letter.content}
+          <div class="signature">
+            <div class="sig-name">${letter.officerName || ""}</div>
+            <div class="sig-title">${letter.officerPosition || ""}</div>
+          </div>
+          <div class="received-by">
+            <h4>Received by:</h4>
+            <div class="received-field">
+              <label>Name (Firm Representative)</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Signature</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Position</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Date</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+          </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 400);
+  };
+
+  const exportToPDF = () => {
+    if (!letter.content.trim()) return;
+    
+    // Use html2canvas and jsPDF to convert the HTML to PDF
+    const printContent = `
+      <html>
+        <head>
+          <style>
+            @page { margin: 0.5in; }
+            body { font-family: 'Times New Roman', Times, serif; margin: 20px; line-height: 1.4; font-size: 13px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
+            .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
+            .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
+            .form-label { background: #f0f0f0; font-weight: normal; width: 30px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+            .letter-body { white-space: normal; }
+            .letter-body p { margin: 8px 0; text-align: justify; }
+            .letter-body u { text-decoration: underline; }
+            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; table-layout: fixed; }
+            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; }
             .obs-table th { background: #f0f0f0; font-weight: bold; }
             .signature { margin-top: 25px; }
             .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
@@ -193,9 +284,6 @@ ${blankRows}
                 <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
               </tr>
             </table>
-            <div style="text-align: right;">
-              <img src="/dti-logo.png" alt="DTI Logo" style="height: 60px;" onerror="this.style.display='none'" />
-            </div>
           </div>
           ${letter.content}
           <div class="signature">
@@ -227,9 +315,132 @@ ${blankRows}
           </div>
         </body>
       </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => printWindow.print(), 400);
+    `;
+
+    // Create a temporary iframe to render the content
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.left = '-9999px';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(printContent);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const contentWidth = iframeDoc.body.scrollWidth;
+      const contentHeight = iframeDoc.body.scrollHeight;
+      
+      // Use jsPDF's html method to convert HTML to PDF
+      pdf.html(iframeDoc.body, {
+        callback: function (doc) {
+          doc.save(`Letter_of_Inquiry_${new Date().toISOString().split('T')[0]}.pdf`);
+          document.body.removeChild(iframe);
+        },
+        x: 10,
+        y: 10,
+        width: 190,
+        windowWidth: contentWidth
+      });
+    }, 500);
+  };
+
+  const exportToWord = async () => {
+    if (!letter.content.trim()) return;
+    
+    // Create HTML content using the exact same format as print letter
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <style>
+            @page { margin: 0.5in; }
+            body { font-family: 'Times New Roman', Times, serif; margin: 20px; line-height: 1.4; font-size: 12pt; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
+            .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
+            .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
+            .form-label { background: #f0f0f0; font-weight: normal; width: 30px; }
+            .letter-body { white-space: normal; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .letter-body p { margin: 8px 0; text-align: justify; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .letter-body u { text-decoration: underline; }
+            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 12pt; table-layout: fixed; font-family: 'Times New Roman', Times, serif; }
+            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .obs-table th { background: #f0f0f0; font-weight: bold; }
+            .signature { margin-top: 25px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .sig-title { margin-top: 3px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 12pt; font-family: 'Times New Roman', Times, serif; }
+            .received-field { display: flex; margin-bottom: 10px; font-size: 12pt; font-family: 'Times New Roman', Times, serif; }
+            .received-field label { width: 180px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+            .received-field .line { flex: 1; border-bottom: 1px solid #000; margin-left: 10px; }
+          </style>
+        </head>
+        <body style="margin: 0; padding: 20px;">
+          <div style="max-width: 7.5in; margin: 0 auto;">
+            <div class="header">
+              <table class="form-table">
+                <tr>
+                  <td class="form-label" rowspan="3">FORM</td>
+                <td style="width: 60px;">Code</td>
+                <td style="width: 100px; text-align: center;">FM-PSM-03</td>
+              </tr>
+              <tr>
+                <td>Rev.</td>
+                <td style="text-align: center;">01</td>
+              </tr>
+              <tr>
+                <td>Date</td>
+                <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
+              </tr>
+            </table>
+          </div>
+          <div style="font-family: 'Times New Roman', Times, serif; font-size: 12pt;">
+            ${letter.content}
+          </div>
+          <div class="signature">
+            <div class="sig-name">${letter.officerName || ""}</div>
+            <div class="sig-title">${letter.officerPosition || ""}</div>
+          </div>
+          <div class="received-by">
+            <h4>Received by:</h4>
+            <div class="received-field">
+              <label>Name (Firm Representative)</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Signature</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Position</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+            <div class="received-field">
+              <label>Date</label>
+              <span>:</span>
+              <div class="line"></div>
+            </div>
+          </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Letter_of_Inquiry_${new Date().toISOString().split('T')[0]}.doc`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const selectedItems = prices.filter(p => selectedIds.includes(p.id));
@@ -350,6 +561,13 @@ ${blankRows}
         </div>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "12px" }}>
+          <button
+            onClick={exportToWord}
+            style={{ ...buttonStyle, background: "#2563eb", color: "white" }}
+            disabled={!letter.content.trim()}
+          >
+            Download Word
+          </button>
           <button
             onClick={printLetter}
             style={{ ...buttonStyle, background: "#0f172a", color: "white" }}
