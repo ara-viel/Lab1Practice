@@ -89,6 +89,9 @@ const modalTdStyle = {
   color: "#334155",
   fontSize: "0.97rem"
 };
+
+// General table cell style alias used in main table rows
+const tdStyle = modalTdStyle;
 import React, { useState, useMemo, useRef } from "react";
 import { TrendingUp, TrendingDown, Search, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { jsPDF } from "jspdf";

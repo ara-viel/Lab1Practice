@@ -15,6 +15,7 @@
 .sidebar.collapsed .nav-item{padding:10px;margin:4px 8px;justify-content:center}
 .sidebar.collapsed .nav-label{display:none}
 .nav-item.active{background:#334155;color:#38bdf8}
+.sub-nav-item.active{background:#1e293b;color:#38bdf8}
 /* Subnav */
 .sub-nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;margin:2px 16px 2px 32px;justify-content:flex-start;background:transparent;border:none;color:#94a3b8;cursor:pointer;border-radius:8px;font-size:0.9rem;font-weight:600;transition:all .2s ease}
 .sidebar.collapsed .sub-nav-item{padding:8px;margin:4px 8px;justify-content:center}
