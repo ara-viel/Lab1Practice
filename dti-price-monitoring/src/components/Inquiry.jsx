@@ -6,7 +6,8 @@ export default function Inquiry({ prices }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [letter, setLetter] = useState({
     subject: "Letter of Inquiry",
-    officer: "",
+    officerName: "Jane Marie L. Tabucan",
+    officerPosition: "Provincial Director",
     date: new Date().toISOString().split("T")[0],
     content: ""
   });
@@ -21,9 +22,19 @@ export default function Inquiry({ prices }) {
     () => prices.filter((p) => {
       const srp = Number(p.srp || 0);
       const price = Number(p.price || 0);
-      if (srp <= 0) return false;
-      // Flagged if price exceeds SRP
-      return price > srp;
+      const prevMonthPrice = Number(p.prevMonthPrice || 0);
+      const referencePrice = srp > 0 ? srp : prevMonthPrice;
+
+      // Flagged if price exceeds SRP, or if no SRP, exceeds previous month's price
+      if (referencePrice > 0 && price > referencePrice) return true;
+
+      // Flagged if current price is 10% lower than previous month's price
+      if (prevMonthPrice > 0) {
+        const percentChange = ((price - prevMonthPrice) / prevMonthPrice) * 100;
+        if (percentChange <= -10) return true;
+      }
+
+      return false;
     }),
     [prices]
   );
@@ -65,20 +76,25 @@ export default function Inquiry({ prices }) {
     const commodityRows = items.map(item => {
       const price = Number(item.price || 0);
       const srp = Number(item.srp || 0);
+      const prevMonthPrice = Number(item.prevMonthPrice || 0);
       const variance = price - srp;
       return `        <tr>
           <td>${item.commodity || ""}</td>
-          <td>${item.brandName || ""}</td>
-          <td>${item.priceClass || ""}</td>
+          <td>${item.brand || ""}</td>
+          <td>${item.size || ""}</td>
           <td>${formatCurrency(srp)}</td>
+          <td>${formatCurrency(prevMonthPrice)}</td>
           <td>${formatCurrency(price)}</td>
           <td>${formatCurrency(variance)}</td>
+          <td></td>
         </tr>`;
     }).join('\n');
 
     // Add blank rows
     const blankRows = Array.from({ length: 3 }, () => 
       `        <tr>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td>&nbsp;</td>
@@ -99,12 +115,14 @@ export default function Inquiry({ prices }) {
         
         <table class="obs-table">
           <tr>
-            <th style="width: 25%;">Commodity</th>
-            <th style="width: 15%;">Brand Name (BN)</th>
-            <th style="width: 12%;">Price Class (PC)</th>
-            <th style="width: 12%;">SRP</th>
+            <th style="width: 15%;">Commodity</th>
+            <th style="width: 12%;">Brand</th>
+            <th style="width: 10%;">Size</th>
+            <th style="width: 10%;">SRP</th>
+            <th style="width: 12%;">Previous Month Price</th>
             <th style="width: 12%;">Monitored Price</th>
-            <th style="width: 12%;">Variance</th>
+            <th style="width: 10%;">Variance</th>
+            <th style="width: 19%;">Remarks</th>
           </tr>
 ${commodityRows}
 ${blankRows}
@@ -116,7 +134,6 @@ ${blankRows}
         
         <p>Please respond within five <strong>(5)</strong> working days from upon receipt of this letter and e-mail it  at <strong>r10.lanaodelnorte@dti.gov.ph</strong>. Any information that you provide will be treated with utmost 
         confidentiality and will be used solely for relevant monitoring, assessment, and analysis purposes.</p>
-        <br/>
         <p>Thank you for your prompt cooperation.</p>
       </div>`;
 
@@ -182,8 +199,8 @@ ${blankRows}
           </div>
           ${letter.content}
           <div class="signature">
-            <div class="sig-name">Jane Marie L. Tabucan</div>
-            <div class="sig-title">Provincial Director</div>
+            <div class="sig-name">${letter.officerName || ""}</div>
+            <div class="sig-title">${letter.officerPosition || ""}</div>
           </div>
           <div class="received-by">
             <h4>Received by:</h4>
@@ -293,19 +310,25 @@ ${blankRows}
       </div>
 
       <div style={cardStyle}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
-          <div>
-            <label style={labelStyle}>Subject</label>
-            <input name="subject" value={letter.subject} onChange={handleLetterChange} style={inputStyle} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "100px" }}>
             <div>
-              <label style={labelStyle}>Date</label>
-              <input type="date" name="date" value={letter.date} onChange={handleLetterChange} style={inputStyle} />
+              <label style={labelStyle}>Subject</label>
+              <input name="subject" value={letter.subject} onChange={handleLetterChange} style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Officer</label>
-              <input name="officer" value={letter.officer} onChange={handleLetterChange} style={inputStyle} placeholder="Name / Position" />
+              <label style={labelStyle}>Date</label>
+              <input type="date" name="date" value={letter.date} onChange={handleLetterChange} style={{...inputStyle, maxWidth: "180px"}} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "60px", maxWidth: "400px" }}>
+            <div>
+              <label style={labelStyle}>Officer Name</label>
+              <input name="officerName" value={letter.officerName} onChange={handleLetterChange} style={inputStyle} placeholder="e.g., Jane Marie L. Tabucan" />
+            </div>
+            <div>
+              <label style={labelStyle}>Officer Position</label>
+              <input name="officerPosition" value={letter.officerPosition} onChange={handleLetterChange} style={inputStyle} placeholder="e.g., Provincial Director" />
             </div>
           </div>
         </div>
