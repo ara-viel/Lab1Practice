@@ -34,18 +34,31 @@ const parseDTIFormat = (rows, sheetName = '') => {
   let categoryBrand = '';
   
   // Find header row - starts with BASIC NECESSITIES or PRIME COMMODITIES
-  for (let i = 0; i < Math.min(30, rows.length); i++) {
-    const firstCell = String(rows[i][0] || '').trim();
-    const firstCellUpper = firstCell.toUpperCase();
+  // Also check column 0 for these keywords anywhere in the row (headers might be shifted)
+  for (let i = 0; i < Math.min(50, rows.length); i++) {
+    const row = rows[i];
+    if (!row) continue;
     
-    console.log(`🔍 Row ${i}, Column 0: "${firstCell}"`);
+    // Check all cells in this row for category keywords
+    let foundCategory = '';
+    for (let j = 0; j < row.length; j++) {
+      const cell = String(row[j] || '').trim().toUpperCase();
+      if (cell === 'BASIC NECESSITIES' || cell === 'PRIME COMMODITIES') {
+        foundCategory = cell;
+        break;
+      }
+    }
     
-    if (firstCellUpper === 'BASIC NECESSITIES' || firstCellUpper === 'PRIME COMMODITIES') {
-      headerRow = rows[i];
-      headerRowIdx = i;
-      categoryBrand = firstCellUpper;  // Store as uppercase for consistency
-      console.log(`✅ Found header row at ${i}: ${categoryBrand}`);
-      break;
+    if (foundCategory) {
+      // Verify this row also has "PRODUCT NAME" - confirms it's the header
+      const rowStr = row.map(c => String(c || '').toUpperCase()).join('|');
+      if (rowStr.includes('PRODUCT NAME') || rowStr.includes('PRODUCT')) {
+        headerRow = rows[i];
+        headerRowIdx = i;
+        categoryBrand = foundCategory;
+        console.log(`✅ Found header row at ${i}: ${categoryBrand}`);
+        break;
+      }
     }
   }
   
@@ -54,9 +67,10 @@ const parseDTIFormat = (rows, sheetName = '') => {
     return [];
   }
   
-  // Extract month and year from sheet name, rows, or use default
+  // Extract month and year from sheet name first (most reliable), then rows, then default
+  // Prioritize sheet name for year since it's most accurate (e.g., "PMR 2023_ILIGAN" = 2023)
   let fileMonth = extractMonthFromSheetName(sheetName) || extractMonthFromRows(rows) || 'January';
-  let fileYear = extractYearFromSheetName(sheetName) || extractYearFromRows(rows) || '2023';
+  let fileYear = extractYearFromSheetName(sheetName) || '2023';  // Default to 2023, don't scan rows for year
   
   console.log(`📅 Date: ${fileMonth} ${fileYear}`);
   
@@ -71,10 +85,11 @@ const parseDTIFormat = (rows, sheetName = '') => {
   for (let col = srpCol + 1; col < headers.length; col++) {
     const header = headers[col].trim();
     
-    // Stop at metadata columns
+    // Stop at metadata columns or date patterns (e.g., "SRP as of Feb. 8, 2023", "Feb 2020")
     if (header === '' || header.includes('Remarks') || header.includes('No. of') ||
         header.includes('Average') || header.includes('Modality') || header.includes('Max Value') ||
-        header.includes('PF') || header.includes('vs. SRP')) {
+        header.includes('PF') || header.includes('vs. SRP') || header.includes('SRP as of') ||
+        /\d{4}|^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)/.test(header.toUpperCase())) {
       break;
     }
     

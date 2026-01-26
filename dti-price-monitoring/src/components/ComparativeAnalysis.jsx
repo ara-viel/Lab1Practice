@@ -274,8 +274,8 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         const priceChange = currentPrice - previousPrice;
         const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
         
-        const srpEntry = srpLookup[group.commodity];
-        const srp = srpEntry?.value || 0;
+        // Use the actual SRP from the most recent record, not a lookup table
+        const srp = sortedPrices[0]?.srp || 0;
 
         const pickHighestLatest = (arr) => {
           if (!arr || arr.length === 0) return 0;
