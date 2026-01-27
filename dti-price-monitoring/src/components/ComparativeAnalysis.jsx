@@ -104,7 +104,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
+export default function ComparativeAnalysis({ prices, prevailingReport = [], initialFilters = {} }) {
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -118,6 +118,17 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   const [selectedReportYear, setSelectedReportYear] = useState("");
   const [reportNarrative, setReportNarrative] = useState("");
   const [isNarrativeEdited, setIsNarrativeEdited] = useState(false);
+
+  // Apply initial filters when provided
+  useEffect(() => {
+    if (initialFilters.commodity) {
+      setSelectedCommodity(initialFilters.commodity);
+      setSearchTerm(initialFilters.commodity);
+    }
+    if (initialFilters.store) {
+      setSelectedStore(initialFilters.store);
+    }
+  }, [initialFilters]);
 
 
   // Handle null or undefined prices

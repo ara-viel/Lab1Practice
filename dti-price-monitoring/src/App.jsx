@@ -19,6 +19,7 @@ function App() {
   const [dataMgmtTab, setDataMgmtTab] = useState(() => localStorage.getItem('dataMgmtTab') || "basic");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [form, setForm] = useState({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
+  const [analysisFilters, setAnalysisFilters] = useState({});
 
   useEffect(() => { localStorage.setItem("activeTab", activeTab); }, [activeTab]);
   useEffect(() => { if (activeTab !== "dataManagement") setIsDataMgmtOpen(false); }, [activeTab]);
@@ -255,8 +256,19 @@ function App() {
 
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
-          {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
-          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "monitoring" && (
+            <Monitoring 
+              prices={prices} 
+              form={form} 
+              handleChange={handleChange} 
+              handleSave={handleSave}
+              onSeeAnalysis={(filters) => {
+                setAnalysisFilters(filters);
+                setActiveTab("comparative price analysis");
+              }}
+            />
+          )}
+          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} initialFilters={analysisFilters} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && (
             <DataManagement 

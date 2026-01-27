@@ -5,6 +5,34 @@ import AddRecordModal from "../modals/AddRecordModal";
 import DeleteConfirmModal from "../modals/DeleteConfirmModal";
 import EditRecordModal from "../modals/EditRecordModal";
 
+// Month helpers aligned with validator month values
+const monthOrder = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+
+const getMonthIndex = (month) => {
+  const value = String(month || "").trim().toLowerCase();
+  return monthOrder.findIndex(m => m.toLowerCase() === value);
+};
+
+const normalizeMonth = (month) => {
+  if (!month) return "";
+  const idx = getMonthIndex(month);
+  if (idx >= 0) return monthOrder[idx].toUpperCase();
+  return String(month).trim().toUpperCase();
+};
+
 export default function DataManagement({ prices, onAddData, onDeleteData, onUpdateData, onImportClick, subTab = "basic" }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -59,10 +87,8 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
       }
       // Month filter
       if (selectedMonth !== "all") {
-        const itemMonth = item.month?.toLowerCase() || "";
-        if (!itemMonth.includes(selectedMonth.toLowerCase())) {
-          return false;
-        }
+        const itemMonth = normalizeMonth(item.month);
+        if (itemMonth !== selectedMonth) return false;
       }
       return matchesSearch;
     });
@@ -117,6 +143,23 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
     }
     
     return Array.from(years).sort((a, b) => b - a);
+  }, [prices]);
+
+  // Available months derived from data (normalized to validator month values)
+  const availableMonths = useMemo(() => {
+    if (!prices || prices.length === 0) return [];
+    const set = new Set();
+    prices.forEach(item => {
+      const norm = normalizeMonth(item.month);
+      if (norm) set.add(norm);
+    });
+    return Array.from(set).sort((a, b) => {
+      const aIdx = getMonthIndex(a);
+      const bIdx = getMonthIndex(b);
+      if (aIdx === -1) return 1;
+      if (bIdx === -1) return -1;
+      return aIdx - bIdx;
+    });
   }, [prices]);
 
   // Sort logic
@@ -441,18 +484,9 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
             className="dm-select"
           >
             <option value="all">All Months</option>
-            <option value="January">January</option>
-            <option value="February">February</option>
-            <option value="March">March</option>
-            <option value="April">April</option>
-            <option value="May">May</option>
-            <option value="June">June</option>
-            <option value="July">July</option>
-            <option value="August">August</option>
-            <option value="September">September</option>
-            <option value="October">October</option>
-            <option value="November">November</option>
-            <option value="December">December</option>
+            {(availableMonths.length ? availableMonths : monthOrder.map(m => m.toUpperCase())).map(month => (
+              <option key={month} value={month}>{month}</option>
+            ))}
           </select>
         </div>
       </div>
