@@ -451,6 +451,7 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
                 <SortHeader label="COMMODITY" sortKey="commodity" />
                 <SortHeader label="MONTH" sortKey="month" />
                 <SortHeader label="PRICE" sortKey="price" />
+                <SortHeader label="SRP" sortKey="srp" />
                 <SortHeader label="SIZE" sortKey="size" />
                 <SortHeader label="STORE" sortKey="store" />
                 <SortHeader label="VARIANT" sortKey="variant" />
@@ -490,6 +491,9 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-price">₱{Number(item.price).toFixed(2)}</span>
+                      </td>
+                      <td className="dm-table-td">
+                        <span className="dm-text-secondary">{item.srp !== undefined && item.srp !== '' ? `₱${Number(item.srp).toFixed(2)}` : "--"}</span>
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-secondary">{item.size || "N/A"}</span>

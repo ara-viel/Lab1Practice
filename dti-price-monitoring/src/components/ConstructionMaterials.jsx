@@ -5,7 +5,7 @@ import AddRecordModal from "../modals/AddRecordModal";
 import DeleteConfirmModal from "../modals/DeleteConfirmModal";
 import EditRecordModal from "../modals/EditRecordModal";
 
-export default function PrimeCommodities({ prices, onAddData, onDeleteData, onUpdateData, onImportClick }) {
+export default function ConstructionMaterials({ prices, onAddData, onDeleteData, onUpdateData, onImportClick }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -258,7 +258,7 @@ export default function PrimeCommodities({ prices, onAddData, onDeleteData, onUp
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `prime_commodities_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `construction_materials_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 

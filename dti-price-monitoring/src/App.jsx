@@ -8,6 +8,9 @@ import LoginPage from './components/LoginPage.jsx';
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
 import DataManagement from './components/DataManagement.jsx';
+import BasicNecessities from './components/BasicNecessities.jsx';
+import PrimeCommodities from './components/PrimeCommodities.jsx';
+import ConstructionMaterials from './components/ConstructionMaterials.jsx';
 import LandingPage from './components/LandingPage.jsx';
 import { LayoutDashboard, Activity, FileSearch, FileText, Menu as MenuIcon, Database, ArrowUp } from 'lucide-react';
 import './assets/App.css';
@@ -20,6 +23,12 @@ function App() {
   const [dataMgmtTab, setDataMgmtTab] = useState(() => localStorage.getItem('dataMgmtTab') || "basic");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [form, setForm] = useState({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('user'));
+  const [user, setUser] = useState(() => {
+    const userData = localStorage.getItem('user');
+    return userData ? JSON.parse(userData) : null;
+  });
+  const [showLoginPage, setShowLoginPage] = useState(false);
 
   useEffect(() => { localStorage.setItem("activeTab", activeTab); }, [activeTab]);
   useEffect(() => { if (activeTab !== "dataManagement") setIsDataMgmtOpen(false); }, [activeTab]);
@@ -320,9 +329,39 @@ function App() {
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
           {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
-          {activeTab === "dataManagement" && (
+          {activeTab === "dataManagement" && dataMgmtTab === "basic" && (
+            <BasicNecessities 
+              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'basic necessities')}
+              onAddData={addPriceData}
+              onDeleteData={handleDeleteData}
+              onUpdateData={handleUpdateData}
+              onImportClick={() => setShowImport(true)}
+            />
+          )}
+          {activeTab === "dataManagement" && dataMgmtTab === "prime" && (
+            <PrimeCommodities 
+              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'prime commodities')}
+              onAddData={addPriceData}
+              onDeleteData={handleDeleteData}
+              onUpdateData={handleUpdateData}
+              onImportClick={() => setShowImport(true)}
+            />
+          )}
+          {activeTab === "dataManagement" && dataMgmtTab === "construction" && (
+            <ConstructionMaterials 
+              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'construction materials')}
+              onAddData={addPriceData}
+              onDeleteData={handleDeleteData}
+              onUpdateData={handleUpdateData}
+              onImportClick={() => setShowImport(true)}
+            />
+          )}
+          {activeTab === "dataManagement" && dataMgmtTab === "others" && (
             <DataManagement 
-              prices={prices} 
+              prices={prices.filter(p => {
+                const brand = (p.brand || '').toLowerCase();
+                return brand !== 'basic necessities' && brand !== 'prime commodities' && brand !== 'construction materials';
+              })}
               onAddData={addPriceData}
               onDeleteData={handleDeleteData}
               onUpdateData={handleUpdateData}

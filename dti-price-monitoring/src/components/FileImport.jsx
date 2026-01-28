@@ -43,11 +43,14 @@ export default function FileImport({ onImportSuccess, onClose }) {
 
     setLoading(true);
     try {
-      // Override brand field with selected category
-      const dataWithCategory = importedData.map(item => ({
-        ...item,
-        brand: category  // Use the selected category as the brand
-      }));
+      // If BPCM is selected, keep the parsed brand from the file (auto-sort)
+      // Otherwise, override with the selected category
+      const dataWithCategory = category === "BPCM" 
+        ? importedData  // Keep original parsed brand for auto-sort
+        : importedData.map(item => ({
+            ...item,
+            brand: category  // Override with selected category
+          }));
 
       await onImportSuccess(dataWithCategory, category);
       setMessage({
@@ -134,6 +137,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
             }}
           >
             <option value="">-- Choose Category --</option>
+            <option value="BPCM">BPCM (All Categories - Auto Sort)</option>
             <option value="BASIC NECESSITIES">Basic Necessities</option>
             <option value="PRIME COMMODITIES">Prime Commodities</option>
             <option value="CONSTRUCTION MATERIALS">Construction Materials</option>
