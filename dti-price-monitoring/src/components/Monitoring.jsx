@@ -69,6 +69,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
   const [selectedBrand, setSelectedBrand] = useState("");
   const [selectedTrendSizes, setSelectedTrendSizes] = useState(new Set());
   const [selectedStore, setSelectedStore] = useState("");
+  const [showCommodityDropdown, setShowCommodityDropdown] = useState(false);
 
   // Legacy product search (for backward compatibility with range section)
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -652,12 +653,51 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
           </button>
         </div>
         <div style={filterStyle}>
-          <select style={selectStyle} value={selectedCommodity} onChange={(e) => { setSelectedCommodity(e.target.value); setSelectedBrand(""); setSelectedTrendSizes(new Set()); }}>
-            <option value="">Select Commodity</option>
-            {uniqueCommodities.map((commodity, idx) => (
-              <option key={idx} value={commodity}>{commodity}</option>
-            ))}
-          </select>
+          <div style={{ position: "relative", minWidth: "500px" }}>
+            <input
+              type="text"
+              style={{ ...selectStyle, width: "85%" }}
+              placeholder="Search commodity..."
+              value={selectedCommodity}
+              onChange={(e) => { setSelectedCommodity(e.target.value); setSelectedBrand(""); setSelectedTrendSizes(new Set()); setShowCommodityDropdown(true); }}
+              onFocus={() => setShowCommodityDropdown(true)}
+              onBlur={() => setTimeout(() => setShowCommodityDropdown(false), 200)}
+            />
+            {selectedCommodity && (
+              <button
+                onClick={() => {
+                  setSelectedCommodity("");
+                  setSelectedBrand("");
+                  setSelectedTrendSizes(new Set());
+                }}
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#94a3b8", padding: "4px 8px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                onMouseEnter={(e) => e.currentTarget.style.color = "#64748b"}
+                onMouseLeave={(e) => e.currentTarget.style.color = "#94a3b8"}
+              >
+                ✕
+              </button>
+            )}
+            {showCommodityDropdown && uniqueCommodities.length > 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, maxHeight: "200px", overflowY: "auto", background: "white", border: "1px solid #cbd5e1", borderRadius: "8px", marginTop: "4px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)", zIndex: 1000 }}>
+                {uniqueCommodities.filter(commodity => commodity.toLowerCase().includes(selectedCommodity.toLowerCase())).map((commodity, idx) => (
+                  <div
+                    key={idx}
+                    style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: idx < uniqueCommodities.filter(c => c.toLowerCase().includes(selectedCommodity.toLowerCase())).length - 1 ? "1px solid #f1f5f9" : "none" }}
+                    onMouseEnter={(e) => e.target.style.background = "#f8fafc"}
+                    onMouseLeave={(e) => e.target.style.background = "white"}
+                    onMouseDown={() => {
+                      setSelectedCommodity(commodity);
+                      setSelectedBrand("");
+                      setSelectedTrendSizes(new Set());
+                      setShowCommodityDropdown(false);
+                    }}
+                  >
+                    {commodity}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {selectedCommodity && availableBrands.length > 0 && (
             <select style={selectStyle} value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); setSelectedTrendSizes(new Set()); }}>
@@ -735,15 +775,16 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
       <div style={cardStyle}>
         <h4 style={{ margin: "0 0 16px 0", color: "#1e293b" }}>💰 Price Range (Min - Max)</h4>
         <div style={filterStyle}>
-          <div style={{ position: "relative", minWidth: "250px" }}>
+          <div style={{ position: "relative", minWidth: "500px" }}>
             <input
               type="text"
-              style={selectStyle}
+              style={{ ...selectStyle, width: "85%" }}
               placeholder="Search commodity..."
               value={productSearchRange}
               onChange={(e) => { setProductSearchRange(e.target.value); setShowProductDropdownRange(true); setShowCommodityPrices(false); }}
               onFocus={() => setShowProductDropdownRange(true)}
               onBlur={() => setTimeout(() => setShowProductDropdownRange(false), 200)}
+              
             />
             {productSearchRange && (
               <button
@@ -790,9 +831,9 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ padding: "16px 20px", border: "2px solid #6366f1", borderRadius: "12px", background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)", fontWeight: 700, color: "#1e293b" }}>
-                <span style={{ fontSize: "14px", color: "#475569", fontWeight: 500, marginRight: "8px" }}>Price Range:</span>
-                <span style={{ fontSize: "20px", color: "#6366f1", fontWeight: 800 }}>₱{priceRangeSummary.min.toFixed(2)} - ₱{priceRangeSummary.max.toFixed(2)}</span>
+              <div style={{ padding: "18px 22px", border: "2px solid #6366f1", borderRadius: "14px", background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)", fontWeight: 700, color: "#1e293b", boxShadow: "0 6px 16px rgba(99, 102, 241, 0.12)" }}>
+                <span style={{ fontSize: "16px", color: "#475569", fontWeight: 600, marginRight: "10px" }}>Price Range:</span>
+                <span style={{ fontSize: "28px", color: "#4f46e5", fontWeight: 900, letterSpacing: "0.2px" }}>₱{priceRangeSummary.min.toFixed(2)} - ₱{priceRangeSummary.max.toFixed(2)}</span>
               </div>
               <div style={{ color: "#475569", fontWeight: 600 }}>Entries: {priceRangeSummary.prices.length}</div>
               <button

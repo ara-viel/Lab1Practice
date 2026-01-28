@@ -1,6 +1,4 @@
-import React, { useMemo, useState } from "react";
-import { jsPDF } from "jspdf";
-import { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } from "docx";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 
 const formatCurrency = (value) => `\u20b1${Number(value || 0).toFixed(2)}`;
 
@@ -13,6 +11,10 @@ export default function Inquiry({ prices }) {
     date: new Date().toISOString().split("T")[0],
     content: ""
   });
+  const [expandedStores, setExpandedStores] = useState([]);
+  const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+  const previewRef = useRef(null);
+  const isUserEditingRef = useRef(false);
 
   const toggleSelection = (id) => {
     setSelectedIds(prev => 
@@ -68,6 +70,12 @@ export default function Inquiry({ prices }) {
     generateContent(items);
   };
 
+  const toggleStore = (storeKey) => {
+    setExpandedStores(prev =>
+      prev.includes(storeKey) ? prev.filter(s => s !== storeKey) : [...prev, storeKey]
+    );
+  };
+
   const generateContent = (items) => {
     const firstItem = items[0];
     const dateObserved = firstItem.timestamp
@@ -79,32 +87,25 @@ export default function Inquiry({ prices }) {
       const price = Number(item.price || 0);
       const srp = Number(item.srp || 0);
       const prevMonthPrice = Number(item.prevMonthPrice || 0);
-      const variance = price - srp;
+      const brand = (item.brand && String(item.brand).trim()) ? item.brand : "N/A";
+      const size = (item.size && String(item.size).trim()) ? item.size : "N/A";
+      const commodity = (item.commodity && String(item.commodity).trim()) ? item.commodity : "N/A";
+      const srpDisplay = srp > 0 ? formatCurrency(srp) : "N/A";
+      const prevDisplay = prevMonthPrice > 0 ? formatCurrency(prevMonthPrice) : "N/A";
+      const priceDisplay = price > 0 ? formatCurrency(price) : "N/A";
+      const hasVariance = (price !== 0 || srp !== 0);
+      const varianceDisplay = hasVariance ? formatCurrency(price - srp) : "N/A";
       return `        <tr>
-          <td>${item.commodity || ""}</td>
-          <td>${item.brand || ""}</td>
-          <td>${item.size || ""}</td>
-          <td>${formatCurrency(srp)}</td>
-          <td>${formatCurrency(prevMonthPrice)}</td>
-          <td>${formatCurrency(price)}</td>
-          <td>${formatCurrency(variance)}</td>
+          <td>${commodity}</td>
+          <td>${brand}</td>
+          <td>${size}</td>
+          <td>${srpDisplay}</td>
+          <td>${prevDisplay}</td>
+          <td>${priceDisplay}</td>
+          <td>${varianceDisplay}</td>
           <td></td>
         </tr>`;
     }).join('\n');
-
-    // Add blank rows
-    const blankRows = Array.from({ length: 3 }, () => 
-      `        <tr>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-        </tr>`
-    ).join('\n');
 
     const body = `      <div class="letter-body">
         <p>Date: <u>${letter.date}</u></p>
@@ -113,23 +114,22 @@ export default function Inquiry({ prices }) {
         <br/><br/>
         <p>Dear Sir/Madam:</p>
         <br/>
-        <p>In connection with the price/supply monitoring conducted at <strong>${firstItem.store || "your store"}</strong> by the Consumer Protection Division of the Department of Trade and Industry – Lanao Del Norte Provincial Office on <strong>${dateObserved}</strong>, we would like to bring your attention to the results of the said monitoring, particularly on the following:</p>
+        <p>In connection with the price/supply monitoring conducted at <strong><u>${firstItem.store || "your store"}</u></strong> by the Consumer Protection Division of the Department of Trade and Industry – Lanao Del Norte Provincial Office on <strong><u>${dateObserved}</u></strong>, we would like to bring your attention to the results of the said monitoring, particularly on the following:</p>
         
         <table class="obs-table">
           <tr>
-            <th style="width: 12%;">Commodity</th>
-            <th style="width: 10%;">Brand</th>
+            <th style="width: 14%;">Commodity</th>
+            <th style="width: 11%;">Brand</th>
             <th style="width: 8%;">Size</th>
             <th style="width: 8%;">SRP</th>
-            <th style="width: 10%;">Previous Month Price</th>
-            <th style="width: 10%;">Monitored Price</th>
-            <th style="width: 8%;">Variance</th>
-            <th style="width: 34%;">Remarks</th>
+            <th style="width: 11%;">Previous Month Price</th>
+            <th style="width: 11.5%;">Monitored Price</th>
+            <th style="width: 10%;">Variance</th>
+            <th style="width: 29%;">Remarks</th>
           </tr>
 ${commodityRows}
-${blankRows}
         </table>
-
+        <br/>
         <p>As the agency mandated to ensure the reasonableness of prices/availability of supply of 
         <em>basic necessities and prime commodities</em>, the DTI would like to inquire about the circumstances 
         and factors which caused the occurrence of the above-enumerated observations.</p>
@@ -148,33 +148,79 @@ ${blankRows}
     setLetter((prev) => ({ ...prev, [name]: value }));
   };
 
+  const focusPreview = () => {
+    if (previewRef.current) {
+      isUserEditingRef.current = false;
+      previewRef.current.focus({ preventScroll: true });
+    }
+  };
+
   const printLetter = () => {
     if (!letter.content.trim()) return;
+    setShowPrintConfirm(true);
+  };
+
+  const handlePrintCancel = () => setShowPrintConfirm(false);
+
+  const handlePrintConfirm = () => {
+    setShowPrintConfirm(false);
+    executePrint();
+  };
+
+  const handlePreviewInput = (e) => {
+    isUserEditingRef.current = true;
+    const html = e.currentTarget.innerHTML;
+    setLetter((prev) => ({ ...prev, content: html }));
+    requestAnimationFrame(() => {
+      isUserEditingRef.current = false;
+    });
+  };
+
+  const handlePreviewFocus = () => {
+    isUserEditingRef.current = false;
+  };
+
+  const handlePreviewBlur = () => {
+    // Allow re-edit after losing focus
+    isUserEditingRef.current = false;
+  };
+
+  useEffect(() => {
+    const node = previewRef.current;
+    if (!node) return;
+    if (isUserEditingRef.current) return;
+    node.innerHTML = letter.content || "<div class='letter-body'><p style='color: #94a3b8;'>Auto-generated letter will appear here.</p></div>";
+  }, [letter.content]);
+
+  const executePrint = () => {
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
       <html>
         <head>
           <title>${letter.subject}</title>
           <style>
-            @page { margin: 0.5in; size: 8.5in 11in; }
-            body { font-family: 'Times New Roman', Times, serif; margin: 0; padding: 20px; line-height: 1.4; font-size: 13px; }
+            @page { margin: 0.5in; size: 8.27in 11.69in; }
+            body { font-family: 'Times New Roman', Times, serif; margin: 0; padding: 5px 20px 20px 20px; line-height: 1.4; font-size: 13px; }
             .container { max-width: 7.5in; margin: 0 auto; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-bottom: 4px; }
             .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
             .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
             .form-label { background: #f0f0f0; font-weight: normal; width: 30px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
             .letter-body { white-space: normal; }
             .letter-body p { margin: 8px 0; text-align: justify; }
             .letter-body u { text-decoration: underline; }
-            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; }
-            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; }
+            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; page-break-inside: auto; break-inside: auto; }
+            .obs-table tr { page-break-inside: avoid; break-inside: avoid; }
+            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; page-break-inside: avoid; break-inside: avoid; }
             .obs-table th { background: #f0f0f0; font-weight: bold; }
-            .signature { margin-top: 25px; }
+            .signature { margin-top: 25px; page-break-inside: avoid; break-inside: avoid; }
             .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
             .sig-title { margin-top: 3px; }
-            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; }
+            .received-group { page-break-inside: avoid; break-inside: avoid; page-break-before: avoid; page-break-after: avoid; }
+            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; page-break-inside: avoid; break-inside: avoid; }
             .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 13px; }
-            .received-field { display: flex; margin-bottom: 10px; font-size: 13px; }
+            .received-table { page-break-inside: avoid; break-inside: avoid; }
+            .received-field { display: flex; margin-bottom: 2px; font-size: 13px; }
             .received-field label { width: 180px; }
             .received-field .line { flex: 1; border-bottom: 1px solid #000; margin-left: 10px; }
           </style>
@@ -197,11 +243,13 @@ ${blankRows}
                   <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
                 </tr>
               </table>
-              <div style="text-align: right;">
-                <img src="/dti-logo.png" alt="DTI Logo" style="height: 60px;" onerror="this.style.display='none'" />
+              <div style="text-align: right; display: flex; align-items: center; gap: 0; margin-top: -17px;">
+                <img src="/logo-DTI.png" alt="DTI Philippines" style="height: 95px; object-fit: contain; display: inline-block;" onerror="this.style.display='none'" />
+                <img src="/bagongPinas.png" alt="Bagong Pilipinas" style="height: 115px; object-fit: contain; display: inline-block;" onerror="this.style.display='none'" />
               </div>
             </div>
             ${letter.content}
+          <div class="received-group">
           <div class="signature">
             <div class="sig-name">${letter.officerName || ""}</div>
             <div class="sig-title">${letter.officerPosition || ""}</div>
@@ -228,6 +276,7 @@ ${blankRows}
               <span>:</span>
               <div class="line"></div>
             </div>
+          </div>
           </div>
           </div>
         </body>
@@ -235,212 +284,14 @@ ${blankRows}
     `);
     printWindow.document.close();
     setTimeout(() => printWindow.print(), 400);
-  };
 
-  const exportToPDF = () => {
-    if (!letter.content.trim()) return;
-    
-    // Use html2canvas and jsPDF to convert the HTML to PDF
-    const printContent = `
-      <html>
-        <head>
-          <style>
-            @page { margin: 0.5in; }
-            body { font-family: 'Times New Roman', Times, serif; margin: 20px; line-height: 1.4; font-size: 13px; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
-            .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
-            .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
-            .form-label { background: #f0f0f0; font-weight: normal; width: 30px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
-            .letter-body { white-space: normal; }
-            .letter-body p { margin: 8px 0; text-align: justify; }
-            .letter-body u { text-decoration: underline; }
-            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; table-layout: fixed; }
-            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; }
-            .obs-table th { background: #f0f0f0; font-weight: bold; }
-            .signature { margin-top: 25px; }
-            .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
-            .sig-title { margin-top: 3px; }
-            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; }
-            .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 13px; }
-            .received-field { display: flex; margin-bottom: 10px; font-size: 13px; }
-            .received-field label { width: 180px; }
-            .received-field .line { flex: 1; border-bottom: 1px solid #000; margin-left: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <table class="form-table">
-              <tr>
-                <td class="form-label" rowspan="3">FORM</td>
-                <td style="width: 60px;">Code</td>
-                <td style="width: 100px; text-align: center;">FM-PSM-03</td>
-              </tr>
-              <tr>
-                <td>Rev.</td>
-                <td style="text-align: center;">01</td>
-              </tr>
-              <tr>
-                <td>Date</td>
-                <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
-              </tr>
-            </table>
-          </div>
-          ${letter.content}
-          <div class="signature">
-            <div class="sig-name">${letter.officerName || ""}</div>
-            <div class="sig-title">${letter.officerPosition || ""}</div>
-          </div>
-          <div class="received-by">
-            <h4>Received by:</h4>
-            <div class="received-field">
-              <label>Name (Firm Representative)</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Signature</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Position</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Date</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Create a temporary iframe to render the content
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '210mm';
-    iframe.style.height = '297mm';
-    iframe.style.left = '-9999px';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(printContent);
-    iframeDoc.close();
-
-    setTimeout(() => {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const contentWidth = iframeDoc.body.scrollWidth;
-      const contentHeight = iframeDoc.body.scrollHeight;
-      
-      // Use jsPDF's html method to convert HTML to PDF
-      pdf.html(iframeDoc.body, {
-        callback: function (doc) {
-          doc.save(`Letter_of_Inquiry_${new Date().toISOString().split('T')[0]}.pdf`);
-          document.body.removeChild(iframe);
-        },
-        x: 10,
-        y: 10,
-        width: 190,
-        windowWidth: contentWidth
-      });
-    }, 500);
-  };
-
-  const exportToWord = async () => {
-    if (!letter.content.trim()) return;
-    
-    // Create HTML content using the exact same format as print letter
-    const htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-          <meta charset='utf-8'>
-          <style>
-            @page { margin: 0.5in; }
-            body { font-family: 'Times New Roman', Times, serif; margin: 20px; line-height: 1.4; font-size: 12pt; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 12px; }
-            .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
-            .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
-            .form-label { background: #f0f0f0; font-weight: normal; width: 30px; }
-            .letter-body { white-space: normal; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .letter-body p { margin: 8px 0; text-align: justify; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .letter-body u { text-decoration: underline; }
-            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 12pt; table-layout: fixed; font-family: 'Times New Roman', Times, serif; }
-            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .obs-table th { background: #f0f0f0; font-weight: bold; }
-            .signature { margin-top: 25px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .sig-title { margin-top: 3px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 12pt; font-family: 'Times New Roman', Times, serif; }
-            .received-field { display: flex; margin-bottom: 10px; font-size: 12pt; font-family: 'Times New Roman', Times, serif; }
-            .received-field label { width: 180px; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
-            .received-field .line { flex: 1; border-bottom: 1px solid #000; margin-left: 10px; }
-          </style>
-        </head>
-        <body style="margin: 0; padding: 20px;">
-          <div style="max-width: 7.5in; margin: 0 auto;">
-            <div class="header">
-              <table class="form-table">
-                <tr>
-                  <td class="form-label" rowspan="3">FORM</td>
-                <td style="width: 60px;">Code</td>
-                <td style="width: 100px; text-align: center;">FM-PSM-03</td>
-              </tr>
-              <tr>
-                <td>Rev.</td>
-                <td style="text-align: center;">01</td>
-              </tr>
-              <tr>
-                <td>Date</td>
-                <td style="text-align: center;">${new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
-              </tr>
-            </table>
-          </div>
-          <div style="font-family: 'Times New Roman', Times, serif; font-size: 12pt;">
-            ${letter.content}
-          </div>
-          <div class="signature">
-            <div class="sig-name">${letter.officerName || ""}</div>
-            <div class="sig-title">${letter.officerPosition || ""}</div>
-          </div>
-          <div class="received-by">
-            <h4>Received by:</h4>
-            <div class="received-field">
-              <label>Name (Firm Representative)</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Signature</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Position</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-            <div class="received-field">
-              <label>Date</label>
-              <span>:</span>
-              <div class="line"></div>
-            </div>
-          </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([htmlContent], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Letter_of_Inquiry_${new Date().toISOString().split('T')[0]}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Restore focus/editability when print tab/window closes or after printing
+    const restoreEdit = () => {
+      window.focus();
+      setTimeout(focusPreview, 50);
+    };
+    printWindow.onafterprint = restoreEdit;
+    printWindow.onbeforeunload = restoreEdit;
   };
 
   const selectedItems = prices.filter(p => selectedIds.includes(p.id));
@@ -453,66 +304,92 @@ ${blankRows}
           <h4 style={{ margin: 0, color: "#0f172a" }}>Flagged Entries (Price above SRP)</h4>
           <span style={tagStyle}>{flaggedItems.length} item(s)</span>
         </div>
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "360px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
             <thead>
               <tr style={{ textAlign: "left", color: "#64748b", fontSize: "0.75rem" }}>
-                <th style={thStyle}>Commodity</th>
                 <th style={thStyle}>Store</th>
                 <th style={thStyle}>Municipality</th>
-                <th style={thStyle}>Price</th>
-                <th style={thStyle}>Previous Month Price</th>
-                <th style={thStyle}>SRP</th>
-                <th style={thStyle}>Variance</th>
-                <th style={thStyle}>Change %</th>
+                <th style={thStyle}>Flagged Items</th>
                 <th style={thStyle}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {flaggedItems.length === 0 && (
+              {Object.keys(flaggedByStore).length === 0 && (
                 <tr>
-                  <td colSpan="9" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
+                  <td colSpan="4" style={{ ...tdStyle, textAlign: "center", color: "#94a3b8" }}>No entries above SRP.</td>
                 </tr>
               )}
-              {flaggedItems.map((p, idx) => {
-                const previousMonthPrice = prices.find(item => 
-                  item.commodity === p.commodity &&
-                  item.store === p.store &&
-                  item.id !== p.id
-                );
-                const prevPrice = previousMonthPrice ? Number(previousMonthPrice.price || 0) : 0;
-                const v = Number(p.price || 0) - Number(p.srp || 0);
-                const percentChange = Number(p.srp || 0) > 0 ? ((v / Number(p.srp)) * 100) : 0;
-                const storeKey = p.store || "Unknown";
-                const isFirstForStore = firstFlaggedIndexByStore[storeKey] === idx;
-                const storeGroup = flaggedByStore[storeKey] || [p];
-                const varianceColor = v < 0 ? "#f59e0b" : v > 0 ? "#dc2626" : "#0f172a";
-                const changeColor = percentChange < 0 ? "#f59e0b" : percentChange > 0 ? "#dc2626" : "#0f172a";
+              {Object.entries(flaggedByStore).map(([store, items]) => {
+                const storeKey = store || "Unknown";
+                const municipality = items[0]?.municipality || "--";
+                const isExpanded = expandedStores.includes(storeKey);
                 return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={tdStyle}>{p.commodity || "--"}</td>
-                    <td style={tdStyle}>{p.store || "--"}</td>
-                    <td style={tdStyle}>{p.municipality || "--"}</td>
-                    <td style={tdStyle}>{formatCurrency(p.price)}</td>
-                    <td style={tdStyle}>{prevPrice > 0 ? formatCurrency(prevPrice) : "--"}</td>
-                    <td style={tdStyle}>{formatCurrency(p.srp)}</td>
-                    <td style={{ ...tdStyle, color: varianceColor }}>{formatCurrency(v)}</td>
-                    <td style={{ ...tdStyle, color: changeColor, fontWeight: "600" }}>
-                      {percentChange > 0 ? "+" : ""}{percentChange.toFixed(1)}%
-                    </td>
-                    <td style={tdStyle}>
-                      {isFirstForStore ? (
-                        <button
-                          onClick={() => { setSelectedIds(storeGroup.map(i => i.id)); generateContent(storeGroup); }}
-                          style={{ ...miniButtonStyle, background: "#0f172a", color: "white" }}
-                        >
-                          Draft Letter (Store)
-                        </button>
-                      ) : (
-                        <span style={{ color: "#94a3b8" }}>--</span>
-                      )}
-                    </td>
-                  </tr>
+                  <React.Fragment key={storeKey}>
+                    <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={tdStyle}>{storeKey}</td>
+                      <td style={tdStyle}>{municipality}</td>
+                      <td style={tdStyle}>{items.length} {items.length === 1 ? "item" : "items"}</td>
+                      <td style={tdStyle}>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            onClick={() => toggleStore(storeKey)}
+                            style={{ ...miniButtonStyle, background: "#334155", color: "white" }}
+                          >
+                            {isExpanded ? "Hide details" : "See details"}
+                          </button>
+                          <button
+                            onClick={() => { setSelectedIds(items.map(i => i.id)); generateContent(items); }}
+                            style={{ ...miniButtonStyle, background: "#0f172a", color: "white" }}
+                          >
+                            Draft letter
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan="4" style={{ ...tdStyle, background: "#f8fafc" }}>
+                          <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "260px" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                              <thead>
+                                <tr style={{ textAlign: "left", color: "#64748b", fontSize: "0.75rem" }}>
+                                  <th style={thStyle}>Commodity</th>
+                                  <th style={thStyle}>Size/Unit</th>
+                                  <th style={thStyle}>Price</th>
+                                  <th style={thStyle}>Previous Month</th>
+                                  <th style={thStyle}>SRP</th>
+                                  <th style={thStyle}>Variance</th>
+                                  <th style={thStyle}>Change %</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {items.map(item => {
+                                  const v = Number(item.price || 0) - Number(item.srp || 0);
+                                  const percentChange = Number(item.srp || 0) > 0 ? ((v / Number(item.srp)) * 100) : 0;
+                                  const varianceColor = v < 0 ? "#f59e0b" : v > 0 ? "#dc2626" : "#0f172a";
+                                  const changeColor = percentChange < 0 ? "#f59e0b" : percentChange > 0 ? "#dc2626" : "#0f172a";
+                                  return (
+                                    <tr key={item.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                                      <td style={tdStyle}>{item.commodity || "--"}</td>
+                                      <td style={tdStyle}>{item.size || "--"}</td>
+                                      <td style={tdStyle}>{formatCurrency(item.price)}</td>
+                                      <td style={tdStyle}>{Number(item.prevMonthPrice || 0) > 0 ? formatCurrency(item.prevMonthPrice) : "--"}</td>
+                                      <td style={tdStyle}>{formatCurrency(item.srp)}</td>
+                                      <td style={{ ...tdStyle, color: varianceColor }}>{formatCurrency(v)}</td>
+                                      <td style={{ ...tdStyle, color: changeColor, fontWeight: "600" }}>
+                                        {percentChange > 0 ? "+" : ""}{percentChange.toFixed(1)}%
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -545,29 +422,107 @@ ${blankRows}
         </div>
 
         <div style={{ marginTop: "12px" }}>
-          <label style={labelStyle}>Letter Body</label>
-          <div
-            style={{
-              ...inputStyle,
-              minHeight: "240px",
-              fontFamily: "'Times New Roman', serif",
-              overflow: "auto",
-              background: "#fafafa",
-              lineHeight: "1.6",
-              padding: "12px"
-            }}
-            dangerouslySetInnerHTML={{ __html: letter.content || "<p style='color: #94a3b8;'>Auto-generated letter will appear here.</p>" }}
-          />
+          <label style={labelStyle}>Letter Body (Editable Preview)</label>
+          <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", background: "#fff" }}>
+            <style>{`
+              .preview-container { font-family: 'Times New Roman', Times, serif; line-height: 1.4; font-size: 13px; padding: 5px 20px 20px 20px; }
+              .preview-inner { max-width: 7.5in; margin: 0 auto; }
+              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-bottom: 4px; }
+              .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
+              .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
+              .form-label { background: #f0f0f0; font-weight: normal; width: 30px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+              .letter-body { white-space: normal; }
+              .letter-body p { margin: 8px 0; text-align: justify; }
+              .letter-body u { text-decoration: underline; }
+              .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; page-break-inside: auto; break-inside: auto; }
+              .obs-table tr { page-break-inside: avoid; break-inside: avoid; }
+              .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; page-break-inside: avoid; break-inside: avoid; }
+              .obs-table th { background: #f0f0f0; font-weight: bold; }
+              .signature { margin-top: 25px; }
+              .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
+              .sig-title { margin-top: 3px; }
+              .received-group { page-break-inside: avoid; break-inside: avoid; page-break-before: avoid; page-break-after: avoid; }
+              .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; }
+              .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 13px; }
+              .received-table { width: 100%; border-collapse: collapse; }
+              .received-table td { border: none; padding: 2px 0; vertical-align: bottom; }
+              .received-table .label-cell { width: 200px; padding-right: 10px; }
+              .received-table .colon-cell { width: 20px; }
+              .received-table .line-cell { border-bottom: 1px solid #000; padding-bottom: 2px; }
+            `}</style>
+            <div className="preview-container">
+              <div className="preview-inner">
+                <div className="header">
+                  <table className="form-table">
+                    <tbody>
+                      <tr>
+                        <td className="form-label" rowSpan={3}>FORM</td>
+                        <td style={{ width: "60px" }}>Code</td>
+                        <td style={{ width: "100px", textAlign: "center" }}>FM-PSM-03</td>
+                      </tr>
+                      <tr>
+                        <td>Rev.</td>
+                        <td style={{ textAlign: "center" }}>01</td>
+                      </tr>
+                      <tr>
+                        <td>Date</td>
+                        <td style={{ textAlign: "center" }}>{new Date(letter.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: "0", marginTop: "-15px" }}>
+                    <img src="/logo-DTI.png" alt="DTI Philippines" style={{ height: "95px", objectFit: "contain", display: "inline-block" }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    <img src="/bagongPinas.png" alt="Bagong Pilipinas" style={{ height: "115px", objectFit: "contain", display: "inline-block" }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  </div>
+                </div>
+                <div
+                  ref={previewRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={handlePreviewInput}
+                  onFocus={handlePreviewFocus}
+                  onBlur={handlePreviewBlur}
+                  style={{ minHeight: "240px", outline: "none" }}
+                />
+                <div className="received-group">
+                  <div className="signature">
+                    <div className="sig-name">{letter.officerName || ""}</div>
+                    <div className="sig-title">{letter.officerPosition || ""}</div>
+                  </div>
+                  <div className="received-by">
+                    <h4>Received by:</h4>
+                    <table className="received-table">
+                      <tbody>
+                        <tr>
+                          <td className="label-cell">Name (Firm Representative)</td>
+                          <td className="colon-cell">:</td>
+                          <td className="line-cell">&nbsp;</td>
+                        </tr>
+                        <tr>
+                          <td className="label-cell">Signature</td>
+                          <td className="colon-cell">:</td>
+                          <td className="line-cell">&nbsp;</td>
+                        </tr>
+                        <tr>
+                          <td className="label-cell">Position</td>
+                          <td className="colon-cell">:</td>
+                          <td className="line-cell">&nbsp;</td>
+                        </tr>
+                        <tr>
+                          <td className="label-cell">Date</td>
+                          <td className="colon-cell">:</td>
+                          <td className="line-cell">&nbsp;</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "12px" }}>
-          <button
-            onClick={exportToWord}
-            style={{ ...buttonStyle, background: "#2563eb", color: "white" }}
-            disabled={!letter.content.trim()}
-          >
-            Download Word
-          </button>
           <button
             onClick={printLetter}
             style={{ ...buttonStyle, background: "#0f172a", color: "white" }}
@@ -577,6 +532,19 @@ ${blankRows}
           </button>
         </div>
       </div>
+
+      {showPrintConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "16px" }}>
+          <div style={{ background: "white", padding: "28px", borderRadius: "16px", width: "440px", maxWidth: "92vw", boxShadow: "0 16px 44px rgba(0,0,0,0.22)" }}>
+            <h4 style={{ margin: "0 0 12px 0", color: "#0f172a" }}>Proceed to print?</h4>
+            <p style={{ margin: "0 0 16px 0", color: "#475569", fontSize: "0.95rem", lineHeight: 1.5 }}>Take note of the <strong><em>MONITORING DATE</em></strong> (underlined date). Once you print, you can only print multiple copies but cannot edit again the contents of the letter.</p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button onClick={handlePrintCancel} style={{ ...buttonStyle, background: "#e2e8f0", color: "#0f172a" }}>Cancel</button>
+              <button onClick={handlePrintConfirm} style={{ ...buttonStyle, background: "#0f172a", color: "white" }}>Proceed</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
