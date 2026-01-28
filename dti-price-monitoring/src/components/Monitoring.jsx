@@ -1,21 +1,21 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
+import React from "react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
+import { getOrderedColumns, formatColumnName, formatCellValue } from '../services/schemaUtils';
 
-// Simple slide-up animation for the modal
-const animationStyles = `
-  @keyframes slideUp {
-    from { transform: translateY(12px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-`;
+export default function Monitoring({ prices, form, handleChange, handleSave }) {
+  // Sort and take top 5 for the bar chart
+  const top5Data = [...prices]
+    .sort((a, b) => b.price - a.price)
+    .slice(0, 5);
 
-const cardStyle = {
-  background: "white",
-  padding: "20px",
-  borderRadius: "16px",
-  boxShadow: "0 4px 8px rgba(15, 23, 42, 0.08)",
-  border: "1px solid #e2e8f0"
-};
+  // Reusable card style
+  const cardStyle = {
+    background: "white",
+    padding: "24px",
+    borderRadius: "16px",
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+    border: "1px solid #e2e8f0"
+  };
 
 const filterStyle = { display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" };
 

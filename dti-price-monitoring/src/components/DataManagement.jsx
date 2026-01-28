@@ -52,10 +52,11 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
   const categoryMap = {
     basic: "Basic Necessities",
     prime: "Prime Commodities",
+    construction: "Construction Materials",
   };
   const activeCategory = categoryMap[subTab] || null;
   const isOtherTab = subTab === "others";
-  const primaryCategories = ["basic necessities", "prime commodities"];
+  const primaryCategories = ["basic necessities", "prime commodities", "construction materials"];
 
   const resolveId = (item, fallbackIndex) => item?._id || item?.id || item?.timestamp || `${item?.commodity || "row"}-${item?.store || ""}-${item?.price || ""}-${fallbackIndex ?? ""}`;
 

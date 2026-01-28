@@ -4,10 +4,11 @@ import { addPriceData, getPriceData, deletePriceData, updatePriceData } from './
 import Dashboard from './components/Dashboard.jsx';
 import Monitoring from './components/Monitoring.jsx';
 import Inquiry from "./components/Inquiry.jsx";
+import LoginPage from './components/LoginPage.jsx';
 import ComparativeAnalysis from './components/ComparativeAnalysis.jsx';
 import FileImport from './components/FileImport.jsx';
 import DataManagement from './components/DataManagement.jsx';
-
+import LandingPage from './components/LandingPage.jsx';
 import { LayoutDashboard, Activity, FileSearch, FileText, Menu as MenuIcon, Database, ArrowUp } from 'lucide-react';
 import './assets/App.css';
 
@@ -19,7 +20,6 @@ function App() {
   const [dataMgmtTab, setDataMgmtTab] = useState(() => localStorage.getItem('dataMgmtTab') || "basic");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [form, setForm] = useState({ commodity: "", store: "", municipality: "", price: "", prevPrice: "", srp: "" });
-  const [analysisFilters, setAnalysisFilters] = useState({});
 
   useEffect(() => { localStorage.setItem("activeTab", activeTab); }, [activeTab]);
   useEffect(() => { if (activeTab !== "dataManagement") setIsDataMgmtOpen(false); }, [activeTab]);
@@ -196,6 +196,30 @@ function App() {
     padding: "40px"
   };
 
+  // Authentication helpers
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setIsLoggedIn(false);
+    setUser(null);
+    setActiveTab('dashboard');
+  };
+
+  const handleLogin = () => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+      setIsLoggedIn(true);
+    }
+  };
+
+  // Pre-auth routes: Landing -> Login -> App
+  if (!isLoggedIn) {
+    if (showLoginPage) {
+      return <LoginPage onAuthenticated={handleLogin} />;
+    }
+    return <LandingPage onLoginClick={() => setShowLoginPage(true)} />;
+  }
+
   return (
     <div className="app-root" style={{ ['--sidebar-width']: '260px', ['--content-padding']: '40px', ['--content-maxwidth']: '1200px' }}>
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
@@ -236,6 +260,9 @@ function App() {
               <button className={`sub-nav-item ${dataMgmtTab === 'prime' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('prime')}>
                 <span>Prime Commodities</span>
               </button>
+              <button className={`sub-nav-item ${dataMgmtTab === 'construction' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('construction')}>
+                <span>Construction Materials</span>
+              </button>
               <button className={`sub-nav-item ${dataMgmtTab === 'others' ? 'active' : ''}`} onClick={() => handleSelectDataMgmtTab('others')}>
                 <span>Other Categories</span>
               </button>
@@ -254,21 +281,44 @@ function App() {
           </div>
         </header>
 
+        {/* Welcome Container */}
+        <div style={{
+          background: '#ffffff',
+          padding: '24px',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', color: '#0f172a', fontSize: '0.95rem', fontWeight: 600 }}>Welcome, Admin</h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>You are logged in as {user?.fullName || user?.email || 'User'}</p>
+          </div>
+          <button onClick={handleLogout} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 20px',
+            background: '#dc2626',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }} onMouseEnter={(e) => e.target.style.background = '#b91c1c'} onMouseLeave={(e) => e.target.style.background = '#dc2626'}>
+            <span>Logout</span>
+          </button>
+        </div>
+
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
-          {activeTab === "monitoring" && (
-            <Monitoring 
-              prices={prices} 
-              form={form} 
-              handleChange={handleChange} 
-              handleSave={handleSave}
-              onSeeAnalysis={(filters) => {
-                setAnalysisFilters(filters);
-                setActiveTab("comparative price analysis");
-              }}
-            />
-          )}
-          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} initialFilters={analysisFilters} />}
+          {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
+          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && (
             <DataManagement 

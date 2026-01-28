@@ -36,14 +36,14 @@ const parseDTIFormat = (rows, sheetName = '') => {
   // Find header row - starts with BASIC NECESSITIES or PRIME COMMODITIES
   // Also check column 0 for these keywords anywhere in the row (headers might be shifted)
   for (let i = 0; i < Math.min(50, rows.length); i++) {
-    const row = rows[i];git 
+    const row = rows[i];
     if (!row) continue;
     
     // Check all cells in this row for category keywords
     let foundCategory = '';
     for (let j = 0; j < row.length; j++) {
       const cell = String(row[j] || '').trim().toUpperCase();
-      if (cell === 'BASIC NECESSITIES' || cell === 'PRIME COMMODITIES') {
+      if (cell === 'BASIC NECESSITIES' || cell === 'PRIME COMMODITIES' || cell === 'CONSTRUCTION MATERIALS') {
         foundCategory = cell;
         break;
       }
@@ -112,24 +112,23 @@ const parseDTIFormat = (rows, sheetName = '') => {
     const col0 = String(row[0] || '').trim();
     const col1 = String(row[1] || '').trim();
     
-    // Check if this is another category marker (stop processing)
+    // Check if this is another category marker (update brand and continue)
     if (col0 === 'PRIME COMMODITIES' || col0 === 'CONSTRUCTION MATERIALS') {
-      break;
+      categoryBrand = col0;
+      currentCommodityGroup = ''; // Reset commodity group when switching categories
+      console.log(`🔄 Switching category: ${categoryBrand}`);
+      continue;
     }
     
-    // If column 0 has text but column 1 is empty OR no valid SRP, this is a commodity group header
-    const col3 = String(row[srpCol] || '').trim();
-
-    // Treat as a group header only when column 1 (product name) is empty.
-    // Do NOT require SRP to be present; products with missing SRP should still be parsed.
+    // If column 0 has text but column 1 is empty, this is a commodity group header row - skip it
     if (col0 && col0 !== '' && (!col1 || col1 === '')) {
       currentCommodityGroup = col0;
       console.log(`🍱 Commodity group: ${currentCommodityGroup}`);
       continue;
     }
     
-    // If we have col0 text and it's different from the product name, use it as commodity group
-    if (col0 && col0 !== '' && col1 && col0 !== col1 && col0.length > 10) {
+    // Always use col0 as the variant if it exists, otherwise use the previous group
+    if (col0 && col0 !== '') {
       currentCommodityGroup = col0;
     }
     
