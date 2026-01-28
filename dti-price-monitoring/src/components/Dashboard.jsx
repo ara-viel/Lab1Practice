@@ -12,7 +12,7 @@ export default function Dashboard({ prices: pricesProp }) {
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
   const [dateRange, setDateRange] = useState("90d");
-  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedYear, setSelectedYear] = useState("all");
   
   // Helper function to convert month names to numbers (0-11)
@@ -78,18 +78,18 @@ export default function Dashboard({ prices: pricesProp }) {
     const parts = [];
     if (selectedCommodity !== "all") parts.push(`Commodity: ${selectedCommodity}`);
     if (selectedStore !== "all") parts.push(`Store: ${selectedStore}`);
-    if (selectedMonth !== "all") {
-      const monthName = new Date(2000, Number(selectedMonth), 1).toLocaleString("default", { month: "long" });
-      parts.push(`Month: ${monthName}`);
+    if (selectedMonths && selectedMonths.length > 0) {
+      const monthNames = selectedMonths.map(m => new Date(2000, m, 1).toLocaleString("default", { month: "short" })).join(", ");
+      parts.push(`Months: ${monthNames}`);
     }
     if (selectedYear !== "all") parts.push(`Year: ${selectedYear}`);
-    if (selectedMonth === "all" && selectedYear === "all") {
+    if ((!selectedMonths || selectedMonths.length === 0) && selectedYear === "all") {
       if (dateRange === "30d") parts.push("Range: Last 30d");
       else if (dateRange === "90d") parts.push("Range: Last 90d");
       else parts.push("Range: All time");
     }
     return parts.length ? parts.join(" • ") : "All data";
-  }, [selectedCommodity, selectedStore, selectedMonth, selectedYear, dateRange]);
+  }, [selectedCommodity, selectedStore, selectedMonths, selectedYear, dateRange]);
 
   const pricesArray = Array.isArray(prices) ? prices : [];
 
@@ -141,12 +141,12 @@ export default function Dashboard({ prices: pricesProp }) {
   }, [pricesArray, monthNameToNumber]);
 
   const dateThreshold = useMemo(() => {
-    if (selectedMonth !== "all" || selectedYear !== "all") return null;
+    if ((selectedMonths && selectedMonths.length > 0) || selectedYear !== "all") return null;
     const now = new Date();
     if (dateRange === "30d") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     if (dateRange === "90d") return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     return null;
-  }, [dateRange, selectedMonth, selectedYear]);
+  }, [dateRange, selectedMonths, selectedYear]);
 
   const filteredPrices = useMemo(() => {
     const result = pricesArray.filter((p) => {
@@ -159,9 +159,13 @@ export default function Dashboard({ prices: pricesProp }) {
         if (Number.isNaN(yearNum) || yearNum !== Number(selectedYear)) return false;
       }
       
-      if (selectedMonth !== "all") {
-        const monthNum = monthNameToNumber(p.month);
-        if (monthNum === null || monthNum !== Number(selectedMonth)) return false;
+      if (selectedMonths && selectedMonths.length > 0) {
+        let monthNum = monthNameToNumber(p.month);
+        if (monthNum === null && p.timestamp) {
+          const d = new Date(p.timestamp);
+          if (!Number.isNaN(d.getTime())) monthNum = d.getMonth();
+        }
+        if (monthNum === null || !selectedMonths.includes(monthNum)) return false;
       }
       
       if (dateThreshold && p.timestamp) {
@@ -173,7 +177,7 @@ export default function Dashboard({ prices: pricesProp }) {
     });
     
     return result;
-  }, [pricesArray, selectedCommodity, selectedStore, dateThreshold, selectedMonth, selectedYear, monthNameToNumber]);
+  }, [pricesArray, selectedCommodity, selectedStore, dateThreshold, selectedMonths, selectedYear, monthNameToNumber]);
 
   const totalEntries = filteredPrices.length;
   const uniqueCommoditiesCount = new Set(filteredPrices.map((p) => p.commodity)).size;
@@ -481,6 +485,83 @@ export default function Dashboard({ prices: pricesProp }) {
     }
   };
 
+  const downloadAllCharts = async () => {
+    const chartEntries = [
+      { ref: timelineChartRef, title: 'Prevailing Price Trend Over Time' },
+      { ref: prevailingChartRef, title: 'Prevailing Price by Month' },
+      { ref: srpChartRef, title: 'Price Range per Commodity per Month' },
+      { ref: municipalityChartRef, title: 'Prevailing Price by Municipality' },
+      { ref: complianceChartRef, title: 'Compliance Breakdown' },
+      { ref: highestChartRef, title: 'Top 5 highest increasing items' },
+      { ref: lowestChartRef, title: 'Top 5 lowest increasing items' }
+    ];
+
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const topMargin = 36;
+    const titleHeight = 28; // space for title + subtitle
+    const remarksHeight = 140; // reserve space for remarks under each chart
+    let pageIndex = 0;
+
+    for (const entry of chartEntries) {
+      const ref = entry.ref;
+      if (!ref?.current) continue;
+      try {
+        const canvas = await html2canvas(ref.current, { backgroundColor: '#ffffff', scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = pdf.getImageProperties(imgData);
+
+        // Compute available area for the image (leave room for title at top and remarks at bottom)
+        const availableHeight = pageHeight - topMargin - titleHeight - remarksHeight - 20;
+        let imgWidth = pageWidth - 40;
+        let imgHeight = imgWidth * (imgProps.height / imgProps.width);
+        if (imgHeight > availableHeight) {
+          imgHeight = availableHeight;
+          imgWidth = imgHeight * (imgProps.width / imgProps.height);
+        }
+
+        if (pageIndex > 0) pdf.addPage();
+
+        // Title
+        pdf.setFontSize(16);
+        pdf.setTextColor(20, 20, 20);
+        pdf.text(entry.title, 20, topMargin);
+
+        // Subtitle (commodity)
+        pdf.setFontSize(10);
+        pdf.setTextColor(100, 116, 139);
+        const commodityLabel = `Commodity: ${selectedCommodity === 'all' ? 'All' : selectedCommodity}`;
+        pdf.text(commodityLabel, 20, topMargin + 16);
+
+        // Draw image
+        const imgY = topMargin + titleHeight;
+        pdf.addImage(imgData, 'PNG', 20, imgY, imgWidth, imgHeight);
+
+        // Draw Remarks section on same page below the chart
+        const remarksY = imgY + imgHeight + 12;
+        pdf.setFontSize(12);
+        pdf.setTextColor(20, 20, 20);
+        pdf.text('Remarks:', 20, remarksY);
+        pdf.setLineWidth(0.5);
+        let y = remarksY + 18;
+        const lines = Math.floor((remarksHeight - 30) / 20);
+        for (let i = 0; i < lines; i++) {
+          pdf.line(20, y, pageWidth - 20, y);
+          y += 20;
+        }
+
+        pageIndex += 1;
+      } catch (err) {
+        console.error('Error capturing chart for combined PDF', err);
+      }
+    }
+
+    const fileName = `All_Charts_${new Date().toISOString().split('T')[0]}.pdf`;
+    pdf.save(fileName);
+  };
+
   return (
     <div className="dashboard-wrapper">
       {loading && <div style={{ textAlign: "center", padding: "40px", fontSize: "1.1rem", color: "#64748b" }}>Loading data...</div>}
@@ -580,19 +661,25 @@ export default function Dashboard({ prices: pricesProp }) {
           </div>
 
           <div className="filter-group filter-year">
-            <div className="filter-label">Month</div>
-            <div className="filter-select-wrapper">
-              <Calendar size={16} color="#94a3b8" />
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All months</option>
-                {availableMonths.map((m) => (
-                  <option key={m} value={m}>{new Date(2000, m, 1).toLocaleString("default", { month: "long" })}</option>
-                ))}
-              </select>
+            <div className="filter-label">Months</div>
+            <div className="filter-select-wrapper" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {availableMonths.map((m) => (
+                    <label key={m} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedMonths.includes(m)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedMonths(prev => Array.from(new Set([...(prev||[]), m])));
+                          else setSelectedMonths(prev => (prev||[]).filter(x => x !== m));
+                        }}
+                      />
+                      {new Date(2000, m, 1).toLocaleString("default", { month: "short" })}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -601,9 +688,17 @@ export default function Dashboard({ prices: pricesProp }) {
         <div className="chart-container" style={{ marginTop: "24px" }}>
           <div className="chart-header">
             <div className="chart-title">Prevailing Price Trend Over Time</div>
-            <button onClick={() => downloadChart(timelineChartRef, "PrevailingPriceTrend")} className="chart-download-button" title="Download chart">
-              <Download size={14} />
-            </button>
+            <div style={{ fontSize: "0.9rem", color: "#64748b", marginTop: 6 }}>
+              Commodity: {selectedCommodity === 'all' ? 'All' : selectedCommodity}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => downloadChart(timelineChartRef, "PrevailingPriceTrend")} className="chart-download-button" title="Download chart">
+                <Download size={14} />
+              </button>
+              <button onClick={downloadAllCharts} className="chart-download-button" title="Download all charts">
+                <Download size={14} /> All
+              </button>
+            </div>
           </div>
           <div ref={timelineChartRef}>
             {timeSeriesData.length > 0 ? (
@@ -623,71 +718,59 @@ export default function Dashboard({ prices: pricesProp }) {
           </div>
         </div>
 
-        {/* PREVAILING PRICE BY MONTH */}
+        {/* TOP MOVERS: Highest Increases and Largest Decreases */}
         <div className="chart-container" style={{ marginTop: "24px" }}>
           <div className="chart-header">
-            <div className="chart-title">Prevailing Price for the Month</div>
-            <button onClick={() => downloadChart(prevailingChartRef, "PrevailingPriceByMonth")} className="chart-download-button" title="Download chart">
-              <Download size={14} />
-            </button>
+            <div className="chart-title"></div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => downloadChart(highestChartRef, "TopIncreases")} className="chart-download-button" title="Download increases chart">
+                <Download size={14} />
+              </button>
+              <button onClick={() => downloadChart(lowestChartRef, "TopDecreases")} className="chart-download-button" title="Download decreases chart">
+                <Download size={14} />
+              </button>
+            </div>
           </div>
-          <div ref={prevailingChartRef}>
-            {prevailingByMonth.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={prevailingByMonth} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: "0.85rem" }} />
-                <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Prevailing Price (Php)", angle: -90, position: "insideLeft" }} />
-                <Tooltip formatter={(value) => `Php ${value.toFixed ? value.toFixed(2) : value}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
-                <Legend />
-                <Bar dataKey="prevailing" fill="#10b981" name="Prevailing Price" />
-              </BarChart>
-            </ResponsiveContainer>
-            ) : (
-            <div className="no-data-message">No monthly prevailing price data available.</div>
-            )}
-          </div>
-        </div>
 
-        {/* PRICE RANGE PER COMMODITY PER MONTH */}
-        {selectedYear !== "all" && (
-        <div className="chart-container" style={{ marginTop: "24px" }}>
-          <div className="chart-header">
-            <div className="chart-title">Price Range per Commodity per Month ({selectedYear})</div>
-            <button onClick={() => downloadChart(srpChartRef, "PriceRangeByCommodity")} className="chart-download-button" title="Download chart">
-              <Download size={14} />
-            </button>
-          </div>
-          <div ref={srpChartRef}>
-            {priceRangeData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={priceRangeData} margin={{ top: 5, right: 30, left: 0, bottom: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="commodity" 
-                  stroke="#64748b" 
-                  style={{ fontSize: "0.75rem" }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} label={{ value: "Price (Php)", angle: -90, position: "insideLeft" }} />
-                <Tooltip 
-                  formatter={(value) => `Php ${value.toFixed ? value.toFixed(2) : value}`} 
-                  contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} 
-                />
-                <Legend />
-                <Bar dataKey="minPrice" fill="#3b82f6" name="Min Price" />
-                <Bar dataKey="maxPrice" fill="#ef4444" name="Max Price" />
-                <Bar dataKey="avgPrice" fill="#f59e0b" name="Avg Price" />
-              </BarChart>
-            </ResponsiveContainer>
-            ) : (
-            <div className="no-data-message">No price range data available. Please select a specific year.</div>
-            )}
+          <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+            <div style={{ flex: 1 }} ref={highestChartRef}>
+              <div style={{ marginBottom: 8, fontSize: "0.95rem", fontWeight: 600 }}>Top 5 highest increasing items</div>
+                <div style={{ fontSize: "0.9rem", color: "#64748b", marginTop: 6 }}>
+                  Commodity: {selectedCommodity === 'all' ? 'All' : selectedCommodity}
+                </div>
+              {topMovers.topUp.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={topMovers.topUp.map(item => ({ name: item.key.replace(/_/g, " • "), change: item.change }))} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                    <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                    <Tooltip formatter={(value) => `Php ${Number(value).toFixed(2)}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
+                    <Bar dataKey="change" fill="#16a34a" name="Increase" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="no-data-message">No increase data available.</div>
+              )}
+            </div>
+
+            <div style={{ flex: 1 }} ref={lowestChartRef}>
+              <div style={{ marginBottom: 8, fontSize: "0.95rem", fontWeight: 600 }}>Top 5 lowest increasing items</div>
+              {topMovers.topDown.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={topMovers.topDown.map(item => ({ name: item.key.replace(/_/g, " • "), change: item.change }))} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                    <YAxis stroke="#64748b" style={{ fontSize: "0.85rem" }} />
+                    <Tooltip formatter={(value) => `Php ${Number(value).toFixed(2)}`} contentStyle={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }} />
+                    <Bar dataKey="change" fill="#ef4444" name="Decrease" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="no-data-message">No decrease data available.</div>
+              )}
+            </div>
           </div>
         </div>
-        )}
       </div>
         </>
       )}
