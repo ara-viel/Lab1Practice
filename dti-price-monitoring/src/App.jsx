@@ -94,16 +94,25 @@ function App() {
       let successCount = 0;
       const errors = [];
       
-      // Helper function to route to correct service based on brand
-      const addToCorrectService = async (data, brand) => {
-        if (brand === 'BASIC NECESSITIES') {
+      // Log the categories being imported
+      const categoryCounts = {};
+      importedData.forEach(item => {
+        const cat = item.category || 'unknown';
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      });
+      console.log('📊 IMPORT CATEGORIES:', categoryCounts);
+      console.log('📋 First 3 records:', importedData.slice(0, 3).map(r => ({ brand: r.brand, category: r.category, store: r.store, price: r.price })));
+      
+      // Helper function to route to correct service based on category
+      const addToCorrectService = async (data, targetCategory) => {
+        if (targetCategory === 'basic') {
           return await addBasicNecessitiesData(data);
-        } else if (brand === 'PRIME COMMODITIES') {
+        } else if (targetCategory === 'prime') {
           return await addPrimeCommoditiesData(data);
-        } else if (brand === 'CONSTRUCTION MATERIALS') {
+        } else if (targetCategory === 'construction') {
           return await addConstructionMaterialsData(data);
         } else {
-          // Fallback to general service
+          // For other categories like noche-buena, school-supplies, etc. - save to general collection
           return await addPriceData(data);
         }
       };
@@ -117,6 +126,7 @@ function App() {
           const dataToSave = {
             brand: normalized.brand || '',
             commodity: normalized.commodity || 'Unknown',
+            category: normalized.category || '',
             month: normalized.month || '',
             price: Number(normalized.price) || 0,
             srp: normalized.srp === '' || normalized.srp === undefined ? '' : Number(normalized.srp),
@@ -127,10 +137,10 @@ function App() {
             timestamp: normalized.timestamp || new Date().toISOString()
           };
           
-          // If BPCM is selected, auto-sort by brand; otherwise use selected category
-          const targetBrand = category === 'BPCM' ? normalized.brand : category;
+          // Use the category from the data (which was set based on user selection)
+          const targetCategory = normalized.category || 'basic';
           
-          await addToCorrectService(dataToSave, targetBrand);
+          await addToCorrectService(dataToSave, targetCategory);
           successCount++;
         } catch (recordError) {
           console.error(`❌ Error importing record ${i + 1}:`, recordError);
@@ -160,7 +170,20 @@ function App() {
 
   const handleDeleteData = async (id) => {
     try {
-      await deletePriceData(id);
+      // Find the record to determine which collection to delete from
+      const record = prices.find(p => p._id === id || p.id === id);
+      
+      if (record?.category === 'basic') {
+        await deleteBasicNecessitiesData(id);
+      } else if (record?.category === 'prime') {
+        await deletePrimeCommoditiesData(id);
+      } else if (record?.category === 'construction') {
+        await deleteConstructionMaterialsData(id);
+      } else {
+        // Default to general collection for other categories
+        await deletePriceData(id);
+      }
+      
       loadData();
       if (window.toast && window.toast.success) window.toast.success('Record successfully deleted!');
     } catch (error) {
@@ -171,7 +194,20 @@ function App() {
 
   const handleUpdateData = async (id, updatedData) => {
     try {
-      await updatePriceData(id, updatedData);
+      // Find the record to determine which collection to update
+      const record = prices.find(p => p._id === id || p.id === id);
+      
+      if (record?.category === 'basic') {
+        await updateBasicNecessitiesData(id, updatedData);
+      } else if (record?.category === 'prime') {
+        await updatePrimeCommoditiesData(id, updatedData);
+      } else if (record?.category === 'construction') {
+        await updateConstructionMaterialsData(id, updatedData);
+      } else {
+        // Default to general collection for other categories
+        await updatePriceData(id, updatedData);
+      }
+      
       loadData();
       if (window.toast && window.toast.success) window.toast.success('Record successfully updated!');
     } catch (error) {
@@ -403,7 +439,7 @@ function App() {
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && dataMgmtTab === "basic" && (
             <BasicNecessities 
-              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'basic necessities')}
+              prices={prices.filter(p => p.category === 'basic')}
               onAddData={addPriceData}
               onDeleteData={handleDeleteData}
               onUpdateData={handleUpdateData}
@@ -412,7 +448,7 @@ function App() {
           )}
           {activeTab === "dataManagement" && dataMgmtTab === "prime" && (
             <PrimeCommodities 
-              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'prime commodities')}
+              prices={prices.filter(p => p.category === 'prime')}
               onAddData={addPriceData}
               onDeleteData={handleDeleteData}
               onUpdateData={handleUpdateData}
@@ -421,7 +457,7 @@ function App() {
           )}
           {activeTab === "dataManagement" && dataMgmtTab === "construction" && (
             <ConstructionMaterials 
-              prices={prices.filter(p => (p.brand || '').toLowerCase() === 'construction materials')}
+              prices={prices.filter(p => p.category === 'construction')}
               onAddData={addPriceData}
               onDeleteData={handleDeleteData}
               onUpdateData={handleUpdateData}
@@ -431,8 +467,7 @@ function App() {
           {activeTab === "dataManagement" && dataMgmtTab === "others" && (
             <DataManagement 
               prices={prices.filter(p => {
-                const brand = (p.brand || '').toLowerCase();
-                return brand !== 'basic necessities' && brand !== 'prime commodities' && brand !== 'construction materials';
+                return p.category !== 'basic' && p.category !== 'prime' && p.category !== 'construction';
               })}
               onAddData={addPriceData}
               onDeleteData={handleDeleteData}

@@ -43,14 +43,18 @@ export default function FileImport({ onImportSuccess, onClose }) {
 
     setLoading(true);
     try {
-      // If BPCM is selected, keep the parsed brand from the file (auto-sort)
-      // Otherwise, override with the selected category
-      const dataWithCategory = category === "BPCM" 
-        ? importedData  // Keep original parsed brand for auto-sort
-        : importedData.map(item => ({
-            ...item,
-            brand: category  // Override with selected category
-          }));
+      // If BPCM is selected, keep the parsed category from the file (auto-sort)
+      // Otherwise, use the selected category
+      const dataWithCategory = importedData.map(item => ({
+        ...item,
+        category: category === "BPCM" ? item.category : 
+                  category === "BASIC NECESSITIES" ? "basic" :
+                  category === "PRIME COMMODITIES" ? "prime" :
+                  category === "CONSTRUCTION MATERIALS" ? "construction" :
+                  category === "NOCHE BUENA" ? "noche-buena" :
+                  category === "SCHOOL SUPPLIES" ? "school-supplies" :
+                  item.category
+      }));
 
       await onImportSuccess(dataWithCategory, category);
       setMessage({
@@ -120,7 +124,7 @@ export default function FileImport({ onImportSuccess, onClose }) {
         {/* Category Select */}
         <div style={{ marginBottom: "16px" }}>
           <label style={{ display: "block", fontWeight: 600, color: "#0f172a", marginBottom: "8px" }}>
-            Select Category
+            Import Category *
           </label>
           <select
             value={category}
@@ -136,15 +140,13 @@ export default function FileImport({ onImportSuccess, onClose }) {
               color: "#0f172a"
             }}
           >
-            <option value="">-- Choose Category --</option>
-            <option value="BPCM">BPCM (All Categories - Auto Sort)</option>
-            <option value="BASIC NECESSITIES">Basic Necessities</option>
-            <option value="PRIME COMMODITIES">Prime Commodities</option>
-            <option value="CONSTRUCTION MATERIALS">Construction Materials</option>
-            <option value="MEDICAL SUPPLIES">Medical Supplies</option>
-            <option value="NOCHE BUENA">Noche Buena</option>
-            <option value="AGRI PRODUCTS">Agri Products</option>
-            <option value="SCHOOL SUPPLIES">School Supplies</option>
+            <option value="">-- Select Category --</option>
+            <option value="BPCM">BPCM (Auto-Sort All Categories)</option>
+            <option value="BASIC NECESSITIES">Basic Necessities Only</option>
+            <option value="PRIME COMMODITIES">Prime Commodities Only</option>
+            <option value="CONSTRUCTION MATERIALS">Construction Materials Only</option>
+            <option value="NOCHE BUENA">Noche Buena Only</option>
+            <option value="SCHOOL SUPPLIES">School Supplies Only</option>
           </select>
         </div>
 

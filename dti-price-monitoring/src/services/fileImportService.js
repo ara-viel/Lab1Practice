@@ -100,6 +100,17 @@ const parseDTIFormat = (rows, sheetName = '') => {
   
   console.log(`✅ Found ${storeColumns.length} stores: ${storeColumns.map(s => s.name).slice(0, 5).join(', ')}...`);
   
+  // Normalize category to lowercase: BASIC NECESSITIES -> "basic", etc.
+  const normalizeCategory = (catStr) => {
+    const cat = String(catStr).toUpperCase();
+    if (cat.includes('BASIC')) return 'basic';
+    if (cat.includes('PRIME')) return 'prime';
+    if (cat.includes('CONSTRUCTION')) return 'construction';
+    return 'basic'; // default
+  };
+  
+  const categoryValue = normalizeCategory(categoryBrand);
+  
   // Track current commodity group (like "Canned Sardines in tomato sauce")
   let currentCommodityGroup = '';
   
@@ -110,13 +121,14 @@ const parseDTIFormat = (rows, sheetName = '') => {
     if (!row || row.length === 0) continue;
     
     const col0 = String(row[0] || '').trim();
+    const col0Upper = col0.toUpperCase();
     const col1 = String(row[1] || '').trim();
     
-    // Check if this is another category marker (update brand and continue)
-    if (col0 === 'PRIME COMMODITIES' || col0 === 'CONSTRUCTION MATERIALS') {
-      categoryBrand = col0;
+    // Check if this is another category marker (update category and continue)
+    if (col0Upper === 'BASIC NECESSITIES' || col0Upper === 'PRIME COMMODITIES' || col0Upper === 'CONSTRUCTION MATERIALS') {
+      categoryBrand = col0Upper;
       currentCommodityGroup = ''; // Reset commodity group when switching categories
-      console.log(`🔄 Switching category: ${categoryBrand}`);
+      console.log(`🔄 🔄 🔄 CATEGORY SWITCH: ${categoryBrand} 🔄 🔄 🔄`);
       continue;
     }
     
@@ -127,7 +139,7 @@ const parseDTIFormat = (rows, sheetName = '') => {
       continue;
     }
     
-    // Always use col0 as the variant if it exists, otherwise use the previous group
+    // Always use col0 as the commodity group if it exists, otherwise use the previous group
     if (col0 && col0 !== '') {
       currentCommodityGroup = col0;
     }
@@ -142,7 +154,7 @@ const parseDTIFormat = (rows, sheetName = '') => {
     
     const srpNum = srpStr === '' ? '' : parsePrice(srpStr);
     
-    console.log(`📦 Processing: ${productName} (${unit}) - SRP: ${srpNum} - Variant: ${currentCommodityGroup}`);
+    console.log(`📦 Processing: ${productName} (${unit}) - SRP: ${srpNum} - Category: ${categoryBrand}`);
     
     // Process each store column
     for (const store of storeColumns) {
@@ -159,9 +171,9 @@ const parseDTIFormat = (rows, sheetName = '') => {
       if (isNaN(price) || price <= 0) continue;
       
       parsedData.push({
-        brand: categoryBrand,                           // BASIC NECESSITIES
-        commodity: productName,                         // King Cup Sardines (Non-Easy Open)
-        variant: currentCommodityGroup,                 // Canned Sardines in tomato sauce
+        brand: productName,                             // King Cup Sardines (Non-Easy Open)
+        commodity: currentCommodityGroup,               // Canned Sardines in tomato sauce
+        category: normalizeCategory(categoryBrand),     // "basic", "prime", or "construction"
         size: unit,                                     // 155g
         store: store.name,                              // PureGold, Ma. Del Carmen Mart, etc.
         price: price,
@@ -170,6 +182,8 @@ const parseDTIFormat = (rows, sheetName = '') => {
         years: fileYear,
         timestamp: new Date().toISOString()
       });
+      
+      console.log(`✅ Added: ${productName} → ${store.name}: ${price} (category: ${normalizeCategory(categoryBrand)})`);
     }
   }
   

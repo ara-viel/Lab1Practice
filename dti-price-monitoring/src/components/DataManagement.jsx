@@ -4,6 +4,7 @@ import "../assets/DataManagement.css";
 import AddRecordModal from "../modals/AddRecordModal";
 import DeleteConfirmModal from "../modals/DeleteConfirmModal";
 import EditRecordModal from "../modals/EditRecordModal";
+import { deletePriceData } from "../services/priceService";
 
 // Month helpers aligned with validator month values
 const monthOrder = [
@@ -72,12 +73,15 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
         (item.brand?.toLowerCase() || "").includes(searchLower) ||
         (item.variant?.toLowerCase() || "").includes(searchLower)
       );
-      // Category filter based on subTab - check both brand and category fields
-      const itemCategory = (item.brand || item.category || "").toString().toLowerCase();
+      // Category filter based on subTab - check category field directly
       if (isOtherTab) {
-        if (primaryCategories.includes(itemCategory)) return false;
+        // Show items that don't have category="basic", "prime", or "construction"
+        if (item.category === 'basic' || item.category === 'prime' || item.category === 'construction') {
+          return false;
+        }
       } else if (activeCategory) {
-        if (itemCategory !== activeCategory.toLowerCase()) return false;
+        // Show only items with matching category
+        if (item.category !== subTab) return false;
       }
       // Year filter
       if (selectedYear !== "all") {
@@ -240,15 +244,40 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
 
   const confirmBulkDelete = async () => {
     const idsArray = Array.from(selectedIds);
+    let successCount = 0;
+    let errorCount = 0;
+    
     for (const rid of idsArray) {
-      const item = findItemByResolvedId(rid);
-      const effectiveId = item?._id || item?.id || rid;
-      if (effectiveId) {
-        await onDeleteData(effectiveId);
+      try {
+        const item = findItemByResolvedId(rid);
+        const effectiveId = item?._id || item?.id || rid;
+        if (effectiveId) {
+          await deletePriceData(effectiveId);
+          successCount++;
+        }
+      } catch (error) {
+        errorCount++;
+        console.error("Error deleting:", error);
       }
     }
+    
     setSelectedIds(new Set());
     setCurrentPage(1);
+    
+    // Show single toast message with count
+    if (successCount > 0) {
+      if (window.toast && window.toast.success) {
+        window.toast.success(`✅ Successfully deleted ${successCount} record${successCount > 1 ? 's' : ''}!`);
+      }
+    }
+    if (errorCount > 0) {
+      if (window.toast && window.toast.error) {
+        window.toast.error(`⚠️ Failed to delete ${errorCount} record${errorCount > 1 ? 's' : ''}`);
+      }
+    }
+    
+    // Reload data after all deletions complete
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const handleSort = (key) => {
@@ -527,7 +556,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                 <SortHeader label="SRP" sortKey="srp" />
                 <SortHeader label="SIZE" sortKey="size" />
                 <SortHeader label="STORE" sortKey="store" />
-                <SortHeader label="VARIANT" sortKey="variant" />
+                {!['basic', 'prime', 'construction'].includes(subTab) && <SortHeader label="VARIANT" sortKey="variant" />}
                 <SortHeader label="YEARS" sortKey="years" />
                 <th className="dm-table-th">ACTIONS</th>
               </tr>
@@ -560,7 +589,7 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                         <span className="dm-text-commodity">{item.commodity}</span>
                       </td>
                       <td className="dm-table-td">
-                        <span className="dm-text-secondary">{item.month || "N/A"}</span>
+                        <span className="dm-text-secondary">{item.month || "--"}</span>
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-price">{(Number(item.price) === 0 || Number.isNaN(Number(item.price))) ? "--" : `₱${Number(item.price).toFixed(2)}`}</span>
@@ -569,16 +598,18 @@ export default function DataManagement({ prices, onAddData, onDeleteData, onUpda
                         <span className="dm-text-secondary">{item.srp ? `₱${Number(item.srp).toFixed(2)}` : "--"}</span>
                       </td>
                       <td className="dm-table-td">
-                        <span className="dm-text-secondary">{item.size || "N/A"}</span>
+                        <span className="dm-text-secondary">{item.size || "--"}</span>
                       </td>
                       <td className="dm-table-td">
                         <span className="dm-text-store">{item.store}</span>
                       </td>
+                      {!['basic', 'prime', 'construction'].includes(subTab) && (
+                        <td className="dm-table-td">
+                          <span className="dm-text-secondary">{item.variant || "--"}</span>
+                        </td>
+                      )}
                       <td className="dm-table-td">
-                        <span className="dm-text-secondary">{item.variant || "N/A"}</span>
-                      </td>
-                      <td className="dm-table-td">
-                        <span className="dm-text-secondary">{item.years || "N/A"}</span>
+                        <span className="dm-text-secondary">{item.years || "--"}</span>
                       </td>
                       <td className="dm-table-td">
                         <div className="dm-action-buttons">

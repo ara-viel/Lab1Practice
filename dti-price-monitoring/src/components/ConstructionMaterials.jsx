@@ -4,6 +4,7 @@ import "../assets/DataManagement.css";
 import AddRecordModal from "../modals/AddRecordModal";
 import DeleteConfirmModal from "../modals/DeleteConfirmModal";
 import EditRecordModal from "../modals/EditRecordModal";
+import { deleteConstructionMaterialsData } from "../services/constructionMaterialsService";
 
 export default function ConstructionMaterials({ prices, onAddData, onDeleteData, onUpdateData, onImportClick }) {
   const [showEditModal, setShowEditModal] = useState(false);
@@ -28,6 +29,11 @@ export default function ConstructionMaterials({ prices, onAddData, onDeleteData,
     if (!prices) return [];
     
     return prices.filter(item => {
+      // Only show CONSTRUCTION MATERIALS (category = "construction")
+      if (item.category !== 'construction') {
+        return false;
+      }
+      
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = (
         (item.commodity?.toLowerCase() || "").includes(searchLower) ||
@@ -167,15 +173,40 @@ export default function ConstructionMaterials({ prices, onAddData, onDeleteData,
 
   const confirmBulkDelete = async () => {
     const idsArray = Array.from(selectedIds);
+    let successCount = 0;
+    let errorCount = 0;
+    
     for (const rid of idsArray) {
-      const item = findItemByResolvedId(rid);
-      const effectiveId = item?._id || item?.id || rid;
-      if (effectiveId) {
-        await onDeleteData(effectiveId);
+      try {
+        const item = findItemByResolvedId(rid);
+        const effectiveId = item?._id || item?.id || rid;
+        if (effectiveId) {
+          await deleteConstructionMaterialsData(effectiveId);
+          successCount++;
+        }
+      } catch (error) {
+        errorCount++;
+        console.error("Error deleting:", error);
       }
     }
+    
     setSelectedIds(new Set());
     setCurrentPage(1);
+    
+    // Show single toast message with count
+    if (successCount > 0) {
+      if (window.toast && window.toast.success) {
+        window.toast.success(`✅ Successfully deleted ${successCount} record${successCount > 1 ? 's' : ''}!`);
+      }
+    }
+    if (errorCount > 0) {
+      if (window.toast && window.toast.error) {
+        window.toast.error(`⚠️ Failed to delete ${errorCount} record${errorCount > 1 ? 's' : ''}`);
+      }
+    }
+    
+    // Reload data after all deletions complete
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const handleSort = (key) => {
@@ -262,6 +293,23 @@ export default function ConstructionMaterials({ prices, onAddData, onDeleteData,
     a.click();
   };
 
+  // Count unique brands and commodities in filteredData
+  const brandCount = useMemo(() => {
+    const set = new Set();
+    filteredData.forEach(item => {
+      if (item.brand) set.add(item.brand.trim().toLowerCase());
+    });
+    return set.size;
+  }, [filteredData]);
+
+  const commodityCount = useMemo(() => {
+    const set = new Set();
+    filteredData.forEach(item => {
+      if (item.commodity) set.add(item.commodity.trim().toLowerCase());
+    });
+    return set.size;
+  }, [filteredData]);
+
   // Sort header component
   const SortHeader = ({ label, sortKey }) => (
     <th className="dm-table-th" onClick={() => handleSort(sortKey)}>
@@ -278,6 +326,13 @@ export default function ConstructionMaterials({ prices, onAddData, onDeleteData,
 
   return (
     <div className="dm-container">
+      <div style={{ marginBottom: "12px", color: "#475569", fontWeight: 700 }}>
+        Viewing: Construction Materials
+      </div>
+      <div style={{ marginBottom: "12px", color: "#334155", fontWeight: 500, display: "flex", gap: "32px", flexWrap: "wrap" }}>
+        <span>Brands: <strong>{brandCount}</strong></span>
+        <span>Commodities: <strong>{commodityCount}</strong></span>
+      </div>
       {/* Action Bar */}
       <div className="dm-action-bar">
         <div className="dm-action-bar-buttons">

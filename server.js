@@ -130,6 +130,7 @@ app.post('/api/basic-necessities', async (req, res) => {
     if (!payload.store) payload.store = '';
     if (!payload.variant) payload.variant = '';
     if (!payload.timestamp) payload.timestamp = new Date();
+    payload.category = 'basic';
 
     const newRecord = new BasicNecessities(payload);
     await newRecord.save();
@@ -188,8 +189,7 @@ app.post('/api/prime-commodities', async (req, res) => {
     if (!payload.size) payload.size = '';
     if (!payload.store) payload.store = '';
     if (!payload.variant) payload.variant = '';
-    if (!payload.timestamp) payload.timestamp = new Date();
-
+    if (!payload.timestamp) payload.timestamp = new Date();    payload.category = 'prime';
     const newRecord = new PrimeCommodities(payload);
     await newRecord.save();
     console.log(`✅ Prime Commodities record saved`);
@@ -247,8 +247,7 @@ app.post('/api/construction-materials', async (req, res) => {
     if (!payload.size) payload.size = '';
     if (!payload.store) payload.store = '';
     if (!payload.variant) payload.variant = '';
-    if (!payload.timestamp) payload.timestamp = new Date();
-
+    if (!payload.timestamp) payload.timestamp = new Date();    payload.category = 'construction';
     const newRecord = new ConstructionMaterials(payload);
     await newRecord.save();
     console.log(`✅ Construction Materials record saved`);
@@ -278,6 +277,71 @@ app.delete('/api/construction-materials/:id', async (req, res) => {
     const deleted = await ConstructionMaterials.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Record not found' });
     res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== BULK DELETE ENDPOINTS ==========
+// Delete ALL records from a specific collection
+app.delete('/api/basic-necessities/bulk-delete', async (req, res) => {
+  try {
+    const result = await BasicNecessities.deleteMany({});
+    res.json({ message: 'All Basic Necessities deleted', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/prime-commodities/bulk-delete', async (req, res) => {
+  try {
+    const result = await PrimeCommodities.deleteMany({});
+    res.json({ message: 'All Prime Commodities deleted', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/construction-materials/bulk-delete', async (req, res) => {
+  try {
+    const result = await ConstructionMaterials.deleteMany({});
+    res.json({ message: 'All Construction Materials deleted', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/prices/bulk-delete', async (req, res) => {
+  try {
+    const result = await PriceData.deleteMany({});
+    res.json({ message: 'All price data deleted', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete ALL data from ALL collections at once
+app.delete('/api/delete-all', async (req, res) => {
+  try {
+    const results = await Promise.all([
+      BasicNecessities.deleteMany({}),
+      PrimeCommodities.deleteMany({}),
+      ConstructionMaterials.deleteMany({}),
+      PriceData.deleteMany({})
+    ]);
+    
+    const totalDeleted = results.reduce((sum, r) => sum + r.deletedCount, 0);
+    
+    res.json({ 
+      message: 'All data deleted from all collections',
+      totalDeleted,
+      details: {
+        basicNecessities: results[0].deletedCount,
+        primeCommodities: results[1].deletedCount,
+        constructionMaterials: results[2].deletedCount,
+        priceData: results[3].deletedCount
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
