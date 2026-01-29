@@ -49,11 +49,30 @@ export default function Dashboard({ prices: pricesProp }) {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:5000/api/prices');
-        if (!response.ok) throw new Error('Failed to fetch prices');
-        const data = await response.json();
-        console.log('Fetched prices from server:', data);
-        setPrices(Array.isArray(data) ? data : []);
+        
+        // Fetch from all four collections
+        const [basicRes, primeRes, constructionRes, generalRes] = await Promise.all([
+          fetch('http://localhost:5000/api/basic-necessities'),
+          fetch('http://localhost:5000/api/prime-commodities'),
+          fetch('http://localhost:5000/api/construction-materials'),
+          fetch('http://localhost:5000/api/prices')
+        ]);
+        
+        const basicData = basicRes.ok ? await basicRes.json() : [];
+        const primeData = primeRes.ok ? await primeRes.json() : [];
+        const constructionData = constructionRes.ok ? await constructionRes.json() : [];
+        const generalData = generalRes.ok ? await generalRes.json() : [];
+        
+        // Combine all data
+        const allData = [
+          ...(Array.isArray(basicData) ? basicData : []),
+          ...(Array.isArray(primeData) ? primeData : []),
+          ...(Array.isArray(constructionData) ? constructionData : []),
+          ...(Array.isArray(generalData) ? generalData : [])
+        ];
+        
+        console.log('Fetched prices from all collections:', { basicData, primeData, constructionData, generalData, allData });
+        setPrices(allData);
       } catch (err) {
         console.error('Error fetching prices:', err);
         setError(err.message);
