@@ -279,15 +279,7 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     return ["all", ...arr];
   }, [pricesArray, selectedStore]);
 
-  const uniqueStores = useMemo(() => {
-    const map = new Map();
-    pricesArray.forEach(p => {
-      if (!p || !p.store) return;
-      const key = canonical(p.store);
-      if (!map.has(key)) map.set(key, p.store);
-    });
-    return Array.from(map.values());
-  }, [pricesArray, selectedStore, selectedCommodity]);
+  
 
   // Unique brands for brand filter (sorted alphabetically)
   const uniqueBrands = useMemo(() => {
@@ -386,8 +378,10 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
             const selY = Number(yearFilterVal);
             const prevM = selM === 1 ? 12 : selM - 1;
             const prevY = selM === 1 ? selY - 1 : selY;
-            const matchesSelected = (mKey === selM && yKey === selY);
-            const matchesPrev = (mKey === prevM && yKey === prevY);
+            // Accept selected-month rows matching the selected year OR rows missing an explicit year (yKey === "ALL").
+            // Also accept previous-month rows that match the previous year OR lack an explicit year.
+            const matchesSelected = (mKey === selM && (yKey === selY || yKey === "ALL"));
+            const matchesPrev = (mKey === prevM && (yKey === prevY || yKey === "ALL"));
             if (!(matchesSelected || matchesPrev)) return false;
           } else {
             const prevM = selM === 1 ? 12 : selM - 1;
@@ -780,6 +774,33 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
   // Get filtered data first so it can be used in other hooks
   const filteredData = useMemo(() => getCombinedData(), [pricesArray, selectedCommodity, selectedStore, searchTerm, srpLookup, prevailingLookup, selectedReportMonth, selectedReportYear, selectedMonthFilter, selectedYearFilter]);
 
+  // Unique stores for store filter: derive from raw prices but respect selected commodity/brand.
+  const uniqueStores = useMemo(() => {
+    const map = new Map();
+    pricesArray.forEach(p => {
+      if (!p || !p.store) return;
+      // if a commodity filter is active, only include stores that have matching commodity text
+      if (selectedCommodity && selectedCommodity !== 'all') {
+        const pComm = canonical(p.commodity || "");
+        if (!pComm.toLowerCase().includes(canonical(selectedCommodity).toLowerCase())) return;
+      }
+      // if a brand filter is active, ensure the store has that brand
+      if (selectedBrand && selectedBrand !== 'all') {
+        let b = "";
+        try {
+          if (p.brand) b = Array.isArray(p.brand) ? String(p.brand[0] || "") : String(p.brand || "");
+          else if (p.brands) b = Array.isArray(p.brands) ? String(p.brands[0] || "") : String(p.brands || "");
+        } catch (e) { b = ""; }
+        if (!b) return;
+        if (canonical(b).toLowerCase() !== canonical(selectedBrand).toLowerCase()) return;
+      }
+
+      const key = canonical(p.store);
+      if (!map.has(key)) map.set(key, p.store);
+    });
+    return Array.from(map.values());
+  }, [pricesArray, selectedCommodity, selectedBrand, selectedStore]);
+
   // Report-specific data: filter combined results to only entries that match the selected report month/year
   const reportData = useMemo(() => {
     const base = getCombinedData();
@@ -978,6 +999,37 @@ Top Movers: ${topMovers} ${topDecr}
     }
     _prevCommodity.current = selectedCommodity;
   }, [selectedCommodity, reportSource, summaryNarrative]);
+
+  // Auto-select commodity when a brand is chosen (only when commodity is not already selected)
+  useEffect(() => {
+    if (!selectedBrand || selectedBrand === 'all') return;
+    if (selectedCommodity && selectedCommodity !== 'all') return; // don't override an existing commodity selection
+
+    const matchedCommodities = new Set();
+    pricesArray.forEach(p => {
+      if (!p) return;
+      // respect store filter when matching
+      if (selectedStore && selectedStore !== 'all') {
+        const pStore = canonical(p.store || 'Unknown');
+        if (pStore !== canonical(selectedStore)) return;
+      }
+      // normalize brand from record (support `brand` or `brands`)
+      let b = "";
+      try {
+        if (p.brand) b = Array.isArray(p.brand) ? String(p.brand[0] || "") : String(p.brand || "");
+        else if (p.brands) b = Array.isArray(p.brands) ? String(p.brands[0] || "") : String(p.brands || "");
+      } catch (e) { b = ""; }
+      if (!b) return;
+      if (canonical(b) === canonical(selectedBrand) && p.commodity) matchedCommodities.add(p.commodity);
+    });
+
+    const arr = Array.from(matchedCommodities);
+    if (arr.length === 1) {
+      setSelectedCommodity(arr[0]);
+      setSearchTerm(arr[0]);
+      setCurrentPage(1);
+    }
+  }, [selectedBrand, selectedStore, pricesArray]);
 
   // PDF Export Functions
   // PDF generation moved to src/services/reportGenerator.js
@@ -1355,7 +1407,7 @@ Top Movers: ${topMovers} ${topDecr}
           </>
         ) : (
           <div style={{ textAlign: "center", padding: 32, color: "#64748b" }}>
-            Please select a commodity to view the table.
+            Please select a commodity or brand to view the table.
           </div>
         )}
       </div>
