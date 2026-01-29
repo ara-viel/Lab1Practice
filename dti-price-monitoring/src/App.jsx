@@ -166,11 +166,8 @@ function App() {
         window.toast.error(`Import failed: ${error.message}`);
       }
     }
-<<<<<<< Updated upstream
-=======
     loadData(); 
     if (window.toast && window.toast.success) window.toast.success(`Imported ${importedData.length} records`);
->>>>>>> Stashed changes
   };
 
   const handleDeleteData = async (id) => {

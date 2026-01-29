@@ -91,12 +91,12 @@ const modalTdStyle = {
 };
 
 // General table cell style alias used in main table rows
-const tdStyle = modalTdStyle;
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { TrendingUp, TrendingDown, Search, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { generatePDF, generateWord } from "../services/reportGenerator";
 import { computePrevailingPrice } from "../services/prevailingCalculator";
 import "../assets/ComparativeAnalysis.css";
+const tdStyle = modalTdStyle;
 
 // Helper to get month names
 const MONTHS = [
@@ -104,9 +104,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-<<<<<<< Updated upstream
-export default function ComparativeAnalysis({ prices, prevailingReport = [], initialFilters = {} }) {
-=======
+// Component entry is declared below; keep helpers at module scope
 // Normalizers: accept full month names, common abbreviations (e.g. "Jan"), numeric strings, and numbers
 const normalizeMonthValue = (val) => {
   // Accept numbers, numeric strings, full month names, common abbreviations
@@ -154,13 +152,14 @@ const normalizeYearValue = (val) => {
   return Number.isFinite(n) ? n : "ALL";
 };
 
-export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
+export default function ComparativeAnalysis({ prices, monitoringData = null, prevailingReport = [], initialFilters = {} }) {
   // For case-sensitive table behavior keep original casing but trim whitespace
   const canonical = (s) => (s === undefined || s === null) ? "" : String(s).trim();
->>>>>>> Stashed changes
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
+  const [selectedBrand, setSelectedBrand] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("store");
   const [sortDir, setSortDir] = useState("asc");
@@ -198,7 +197,13 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
 
 
   // Handle null or undefined prices and support several shapes
+  // If `monitoringData` is provided (processed dataset from Monitoring), prefer it as the source
   let pricesArray = [];
+  if (Array.isArray(monitoringData)) {
+    pricesArray = monitoringData;
+  }
+  // otherwise fall back to `prices` parsing below
+  else {
   try {
     if (!prices) pricesArray = [];
     else if (Array.isArray(prices)) pricesArray = prices;
@@ -230,6 +235,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   } catch (e) {
     pricesArray = [];
   }
+  }
 
   // Get available months and years from data
   const availableMonths = useMemo(() => {
@@ -259,10 +265,17 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
     const map = new Map();
     pricesArray.forEach(p => {
       if (!p || !p.commodity) return;
+      // when a store filter is active, only include commodities available in that store
+      if (selectedStore && selectedStore !== 'all') {
+        const pStore = canonical(p.store || 'Unknown');
+        if (pStore !== canonical(selectedStore)) return;
+      }
       const key = canonical(p.commodity);
       if (!map.has(key)) map.set(key, p.commodity);
     });
-    return ["all", ...Array.from(map.values())];
+    // return alphabetically sorted list (preserve original casing)
+    const arr = Array.from(map.values()).sort((a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }));
+    return ["all", ...arr];
   }, [pricesArray]);
 
   const uniqueStores = useMemo(() => {
@@ -272,18 +285,44 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
       const key = canonical(p.store);
       if (!map.has(key)) map.set(key, p.store);
     });
-    return ["all", ...Array.from(map.values())];
+    return Array.from(map.values());
   }, [pricesArray]);
 
+  // Unique brands for brand filter (sorted alphabetically)
+  const uniqueBrands = useMemo(() => {
+    const map = new Map();
+    pricesArray.forEach(p => {
+      if (!p) return;
+      // if filtering by store, only include brands available in that store
+      if (selectedStore && selectedStore !== 'all') {
+        const pStore = canonical(p.store || 'Unknown');
+        if (pStore !== canonical(selectedStore)) return;
+      }
+      // if a commodity is selected, limit brands to that commodity
+      if (selectedCommodity && selectedCommodity !== 'all') {
+        const pComm = canonical(p.commodity || "");
+        if (pComm !== canonical(selectedCommodity)) return;
+      }
+      let b = "";
+      try {
+        if (p.brand) b = Array.isArray(p.brand) ? String(p.brand[0] || "") : String(p.brand || "");
+        else if (p.brands) b = Array.isArray(p.brands) ? String(p.brands[0] || "") : String(p.brands || "");
+      } catch (e) { b = ""; }
+      if (!b) return;
+      const key = canonical(b);
+      if (!map.has(key)) map.set(key, b);
+    });
+    const arr = Array.from(map.values()).sort((a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }));
+    return arr;
+  }, [pricesArray]);
 
-  // SRP lookup: take latest non-zero SRP per commodity; fallback to prevailingReport
+  // SRP and prevailing lookups (populated from prevailingReport and then overridden by prices)
   const srpLookup = {};
   const prevailingLookup = {};
 
   // Populate from prevailingReport first (baseline)
   prevailingReport.forEach(r => {
     if (r.commodity && r.srp) {
-      // build composite key including brand and size if available
       const b = r.brand || r.brands || "";
       const brandKey = Array.isArray(b) ? String(b[0] || "") : String(b || "");
       const sizeKey = r.size || "";
@@ -305,7 +344,6 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
     const srpNum = Number(p.srp);
     if (!Number.isNaN(srpNum) && srpNum > 0) {
       const ts = p.timestamp ? new Date(p.timestamp).getTime() : 0;
-      // normalize brand
       let itemBrand = "";
       try {
         if (p.brand) {
@@ -382,10 +420,12 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
             brands: new Set()
           };
         }
+        // Keep original imported month/year and preserve null/undefined prices
+        const parsedPrice = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        const parsedSrp = (item.srp === undefined || item.srp === null || String(item.srp).trim() === "") ? null : Number(item.srp);
         grouped[key].prices.push({
-          // Keep original imported month/year and include normalized keys for grouping
-          price: Number(item.price) || 0,
-          srp: Number(item.srp) || 0,
+          price: parsedPrice,
+          srp: parsedSrp,
           month: item.month,
           year: item.year ?? item.years ?? "",
           monthKey: monthKey,
@@ -404,7 +444,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
             if (Array.isArray(item.brands)) item.brands.forEach(b => b && grouped[key].brands.add(String(b)));
             else grouped[key].brands.add(String(item.brands));
           }
-        } catch (e) { /* ignore brand parsing errors */ }
+        } catch (e) { }
       });
 
       // Build prevailing map across stores per commodity+brand+size+month+year using mode (most frequent price)
@@ -434,7 +474,9 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         // bucket key groups across stores: commodity + size + month + year
         const key = `${item.commodity}__${item.size || ""}__${monthKey}__${yearKey}`;
         if (!prevailingBuckets[key]) prevailingBuckets[key] = [];
-        prevailingBuckets[key].push({ price: Number(item.price) || 0, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0 });
+        // preserve nulls: only include entries with a valid numeric price
+        const pVal = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        if (pVal !== null) prevailingBuckets[key].push({ price: pVal, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0 });
       });
 
       const prevailingMap = {};
@@ -453,20 +495,21 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
 
         // if there is a mode (frequency > 1), pick the price with highest frequency; tie-break by latest timestamp then higher price
         if (maxCount > 1) {
-          let bestPrice = 0;
+          // prefer the highest price among those with the max frequency; tie-break with latest timestamp
+          let bestPrice = -Infinity;
           let bestTs = -1;
           Object.keys(freq).forEach(pKey => {
             const count = freq[pKey];
             if (count === maxCount) {
               const ts = lastTs[pKey] || 0;
               const pNum = Number(pKey);
-              if (ts > bestTs || (ts === bestTs && pNum > bestPrice)) {
-                bestTs = ts;
+              if (pNum > bestPrice || (pNum === bestPrice && ts > bestTs)) {
                 bestPrice = pNum;
+                bestTs = ts;
               }
             }
           });
-          prevailingMap[k] = bestPrice;
+          prevailingMap[k] = bestPrice === -Infinity ? 0 : bestPrice;
         } else {
           // no repeated price (no mode) -> pick highest price across same commodity+size+month+year
             const parts = k.split('__');
@@ -507,78 +550,67 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         if (!item || !item.commodity) return;
         const itemBrand = itemBrandFromRaw(item) || "";
         const sizeKey = item.size || "";
-        const key = `${item.commodity}__${itemBrand}__${sizeKey}`;
+        const storeKey = item.store || "Unknown";
+        const key = `${item.commodity}__${itemBrand}__${sizeKey}__${storeKey}`;
         if (!aggregatedBuckets[key]) aggregatedBuckets[key] = { commodity: item.commodity, brand: itemBrand, size: sizeKey, records: [], stores: new Set() };
         const mKey = normalizeMonthValue(item.month);
         const yKey = normalizeYearValue((item.year ?? item.years) ?? (item.timestamp ? new Date(item.timestamp).getFullYear() : undefined));
-        aggregatedBuckets[key].records.push({ raw: item, price: Number(item.price) || 0, srp: Number(item.srp) || 0, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0, monthKey: mKey, yearKey: yKey, store: item.store || "Unknown" });
-        aggregatedBuckets[key].stores.add(item.store || "Unknown");
+        const recPrice = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        const recSrp = (item.srp === undefined || item.srp === null || String(item.srp).trim() === "") ? null : Number(item.srp);
+        aggregatedBuckets[key].records.push({ raw: item, price: recPrice, srp: recSrp, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0, monthKey: mKey, yearKey: yKey, store: storeKey });
+        aggregatedBuckets[key].stores.add(storeKey);
       });
 
       const results = [];
       Object.values(aggregatedBuckets).forEach(bucket => {
-        const recs = bucket.records.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-        const latest = recs.length ? recs[recs.length - 1] : null;
-        const previous = recs.length > 1 ? recs[recs.length - 2] : null;
-        const currentPrice = latest ? latest.price : 0;
-        const previousPrice = previous ? previous.price : 0;
-        const priceChange = currentPrice - previousPrice;
-        const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
-<<<<<<< Updated upstream
+        // sort by timestamp descending so index 0 is the latest and index 1 is the previous (second-latest)
+        const recs = bucket.records.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        const currentRec = recs.length ? recs[0] : null;
+        const previousRec = recs.length > 1 ? recs[1] : null;
+        const currentPrice = currentRec ? currentRec.price : null;
+        const previousPrice = previousRec ? previousRec.price : null;
+        const priceChange = (currentPrice !== null && previousPrice !== null) ? (currentPrice - previousPrice) : null;
+        const percentChange = (previousPrice !== null && previousPrice !== 0 && priceChange !== null) ? ((priceChange / previousPrice) * 100) : null;
         
-        // Use the actual SRP from the most recent record, not a lookup table
-        const srp = sortedPrices[0]?.srp || 0;
-
-        // Prevailing price rules moved to shared calculator: mode > highest, cap at SRP
-        const prevailingPrice = computePrevailingPrice(group.prices, srp);
-
-        // Determine status based on price changes
-        let statusType = "decreased"; // Default to decreased
         
-        if (currentPrice > previousPrice) {
-          statusType = "higher-than-previous";
-        } else if (currentPrice > srp && srp > 0) {
-          statusType = "higher-than-srp";
-        } else if (currentPrice < previousPrice) {
-          statusType = "decreased";
-=======
-
-        // Prevailing price across this bucket (mode -> tie-break latest ts -> fallback max)
+        // Prevailing price across this bucket (mode -> prefer highest price when tied -> fallback to highest price)
         const freq = {};
         const lastTs = {};
         recs.forEach(r => {
           const p = r.price;
+          if (p === null || p === undefined) return;
           freq[p] = (freq[p] || 0) + 1;
           lastTs[p] = Math.max(lastTs[p] || 0, r.ts || 0);
         });
-        let prevailingPrice = 0;
+        let prevailingPrice = null;
         const counts = Object.values(freq);
         const maxCount = counts.length ? Math.max(...counts) : 0;
         if (maxCount > 1) {
-          let bestPrice = 0;
+          // among prices with max frequency, choose the highest price; tie-break using latest timestamp
+          let bestPrice = -Infinity;
           let bestTs = -1;
           Object.keys(freq).forEach(pKey => {
             const count = freq[pKey];
             if (count === maxCount) {
               const ts = lastTs[pKey] || 0;
               const pNum = Number(pKey);
-              if (ts > bestTs || (ts === bestTs && pNum > bestPrice)) {
-                bestTs = ts;
+              if (pNum > bestPrice || (pNum === bestPrice && ts > bestTs)) {
                 bestPrice = pNum;
+                bestTs = ts;
               }
             }
           });
-          prevailingPrice = bestPrice;
+          prevailingPrice = bestPrice === -Infinity ? null : bestPrice;
         } else {
           // fallback to highest price (tie-break by latest ts)
           let best = { price: -Infinity, ts: -1 };
           recs.forEach(r => {
+            if (r.price === null || r.price === undefined) return;
             if (r.price > best.price || (r.price === best.price && (r.ts || 0) > (best.ts || 0))) {
               best = { price: r.price, ts: r.ts || 0 };
             }
           });
-          prevailingPrice = best.price === -Infinity ? 0 : best.price;
->>>>>>> Stashed changes
+          prevailingPrice = best.price === -Infinity ? null : best.price;
         }
 
         // SRP lookup using brand+size key then fallback to commodity
@@ -587,14 +619,25 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         const srp = srpEntry?.value || 0;
 
         let statusType = "decreased";
-        if (currentPrice > previousPrice) statusType = "higher-than-previous";
-        else if (currentPrice > srp && srp > 0) statusType = "higher-than-srp";
-        else if (currentPrice < previousPrice) statusType = "decreased";
+        if (previousPrice !== null && currentPrice !== null) {
+          if (currentPrice > previousPrice) {
+            statusType = "higher-than-previous";
+          } else if (currentPrice === previousPrice) {
+            statusType = "stable";
+          } else {
+            statusType = "decreased";
+          }
+        } else if (currentPrice !== null && srp > 0 && currentPrice > srp) {
+          statusType = "higher-than-srp";
+        } else if (currentPrice !== null && previousPrice === null) {
+          // no previous to compare to and not above SRP
+          statusType = "stable";
+        }
 
         const isCompliant = srp > 0 ? (currentPrice < srp * 1.10 && currentPrice > srp * 0.90) : true;
 
         const storesArr = Array.from(bucket.stores || []);
-        const storeDisplay = storesArr.length === 1 ? storesArr[0] : `${storesArr.length} stores`;
+        const storeDisplay = storesArr.length === 0 ? "Unknown" : storesArr.join(', ');
 
         results.push({
           commodity: bucket.commodity,
@@ -610,8 +653,8 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
           percentChange: percentChange,
           isCompliant: isCompliant,
           statusType: statusType,
-          month: latest && latest.monthKey !== "ALL" ? latest.monthKey : "",
-          year: latest && latest.yearKey !== "ALL" ? latest.yearKey : ""
+          month: currentRec && currentRec.monthKey !== "ALL" ? currentRec.monthKey : "",
+          year: currentRec && currentRec.yearKey !== "ALL" ? currentRec.yearKey : ""
         });
       });
 
@@ -631,6 +674,11 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
           }
           return false;
         });
+      }
+      // Apply brand filter
+      if (selectedBrand !== "all") {
+        const sb = canonical(selectedBrand);
+        filtered = filtered.filter(item => canonical(item.brand) === sb);
       }
       
       // Apply search filter across BRAND, COMMODITY, SIZE, STORE, YEAR, MONTH (CASE-SENSITIVE)
@@ -774,14 +822,14 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   // Get top 5 highest price changes
   const getTop5Highest = () => {
     return [...dataForAnalysis]
-      .sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0))
+      .sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity))
       .slice(0, 5);
   };
 
   // Get top 5 lowest price changes
   const getTop5Lowest = () => {
     return [...dataForAnalysis]
-      .sort((a, b) => (a.priceChange || 0) - (b.priceChange || 0))
+      .sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity))
       .slice(0, 5);
   };
 
@@ -789,9 +837,12 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   const getStoresWithHighestSRP = () => {
     const storeData = {};
     dataForAnalysis.forEach(item => {
-      if (item.store && item.srp) {
-        if (!storeData[item.store]) storeData[item.store] = [];
-        storeData[item.store].push(Number(item.srp) || 0);
+      if (item.store && item.srp !== null && item.srp !== undefined) {
+        const n = Number(item.srp);
+        if (!Number.isNaN(n)) {
+          if (!storeData[item.store]) storeData[item.store] = [];
+          storeData[item.store].push(n);
+        }
       }
     });
     
@@ -827,17 +878,18 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   // Determine the source used for exports: when a month/year is selected use reportData, otherwise prefer filteredData then paginatedData
   const reportSource = (selectedReportMonth || selectedReportYear) ? reportData : (filteredData.length > 0 ? filteredData : paginatedData);
 
+
   // Calculate summary statistics (use dataForAnalysis so it follows selected month/year)
   const compliantCount = dataForAnalysis.filter(d => d.isCompliant).length;
   const nonCompliantCount = dataForAnalysis.filter(d => !d.isCompliant).length;
   const totalRecords = dataForAnalysis.length;
   const complianceRate = totalRecords > 0 ? ((compliantCount / totalRecords) * 100).toFixed(1) : 0;
   const avgPriceChangeAbs = totalRecords > 0
-    ? (dataForAnalysis.reduce((acc, curr) => acc + (curr.priceChange || 0), 0) / totalRecords).toFixed(2)
+    ? (dataForAnalysis.reduce((acc, curr) => acc + (curr.priceChange ?? 0), 0) / totalRecords).toFixed(2)
     : "0.00";
 
-  const [topIncrease] = [...dataForAnalysis].sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0));
-  const [topDecrease] = [...dataForAnalysis].sort((a, b) => (a.priceChange || 0) - (b.priceChange || 0));
+  const [topIncrease] = [...dataForAnalysis].sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity));
+  const [topDecrease] = [...dataForAnalysis].sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity));
   const topNonCompliant = [...dataForAnalysis]
     .filter((d) => !d.isCompliant)
     .sort((a, b) => {
@@ -854,6 +906,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   const higherPreviousCount = dataForAnalysis.filter(d => d.statusType === "higher-than-previous").length;
   const higherSRPCount = dataForAnalysis.filter(d => d.statusType === "higher-than-srp").length;
   const decreasedCount = dataForAnalysis.filter(d => d.statusType === "decreased").length;
+  const stableCount = dataForAnalysis.filter(d => d.statusType === "stable").length;
   
   // Build enhanced narrative summary
   const top5HighestList = getTop5Highest();
@@ -892,6 +945,25 @@ Top Movers: ${topMovers} ${topDecr}
     }
   }, [selectedReportMonth, selectedReportYear, showReportModal, summaryNarrative]);
 
+  // Auto-open report modal when a commodity is selected by the user (skip initial mount)
+  const _prevCommodity = useRef(selectedCommodity);
+  const _mounted = useRef(false);
+  useEffect(() => {
+    if (!_mounted.current) {
+      _mounted.current = true;
+      _prevCommodity.current = selectedCommodity;
+      return;
+    }
+    if (selectedCommodity && selectedCommodity !== 'all' && _prevCommodity.current !== selectedCommodity) {
+      // only open if we have report data available
+      if (reportSource && reportSource.length > 0) {
+        setReportNarrative(summaryNarrative);
+        setShowReportModal(true);
+      }
+    }
+    _prevCommodity.current = selectedCommodity;
+  }, [selectedCommodity, reportSource, summaryNarrative]);
+
   // PDF Export Functions
   // PDF generation moved to src/services/reportGenerator.js
 
@@ -905,9 +977,10 @@ Top Movers: ${topMovers} ${topDecr}
   const getStatusLabel = (statusType) => {
     const statusMap = {
       "higher-than-previous": { label: "HIGHER THAN PREVIOUS PRICE", color: "#ef4444", bgColor: "#fee2e2" },
-      "higher-than-srp": { label: "HIGHER THAN SRP", color: "#ea580c", bgColor: "#fed7aa" },
+      "higher-than-srp": { label: "HIGHER THAN SRP", color: "#ff8441", bgColor: "#fed7aa" },
       "higher-than-price-freeze": { label: "HIGHER THAN PRICE FREEZE", color: "#d97706", bgColor: "#ffedd5" },
-      "decreased": { label: "DECREASED", color: "#22c55e", bgColor: "#dcfce7" }
+      "decreased": { label: "DECREASED", color: "#22c55e", bgColor: "#dcfce7" },
+      "stable": { label: "STABLE", color: "#2563eb", bgColor: "#eff6ff" }
     };
     return statusMap[statusType] || { label: "UNKNOWN", color: "#64748b", bgColor: "#e2e8f0" };
   };
@@ -932,6 +1005,10 @@ Top Movers: ${topMovers} ${topDecr}
           <span className="ca-label">Decreased</span>
           <div className="ca-value" style={{ color: "#22c55e" }}>{decreasedCount}</div>
         </div>
+        <div className="ca-summary-card" style={{ borderLeft: "4px solid #2563eb" }}>
+          <span className="ca-label">Stable</span>
+          <div className="ca-value" style={{ color: "#2563eb" }}>{stableCount}</div>
+        </div>
       </div>
 
       {/* Combined Table */}
@@ -955,20 +1032,8 @@ Top Movers: ${topMovers} ${topDecr}
         </div>
         <div className="ca-header-row">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="ca-filters-selects" style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
-              <select
-                className="ca-select"
-                value={selectedCommodity}
-                onChange={e => {
-                  setSelectedCommodity(e.target.value);
-                  setCurrentPage(1);
-                }}
-              >
-                <option value="all">All Commodities</option>
-                {uniqueCommodities.map(commodity => (
-                  <option key={commodity} value={commodity}>{commodity}</option>
-                ))}
-              </select>
+            <div style={{ marginLeft: "auto", display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontWeight: 600, color: '#0f172a', marginRight: 8 }}>Filter by:</div>
               <select
                 className="ca-select"
                 value={selectedStore}
@@ -977,7 +1042,7 @@ Top Movers: ${topMovers} ${topDecr}
                   setCurrentPage(1);
                 }}
               >
-                <option value="all">All Stores</option>
+                <option value="all">Store</option>
                 {uniqueStores.map(store => (
                   <option key={store} value={store}>{store}</option>
                 ))}
@@ -989,7 +1054,7 @@ Top Movers: ${topMovers} ${topDecr}
                 onChange={e => { setSelectedMonthFilter(e.target.value); setCurrentPage(1); }}
                 style={{ minWidth: 110 }}
               >
-                <option value="">All Months</option>
+                <option value="">Month</option>
                 {availableMonths.map(m => (
                   <option key={m} value={m}>{MONTHS[m - 1]}</option>
                 ))}
@@ -1000,7 +1065,7 @@ Top Movers: ${topMovers} ${topDecr}
                 onChange={e => { setSelectedYearFilter(e.target.value); setCurrentPage(1); }}
                 style={{ minWidth: 100 }}
               >
-                <option value="">All Years</option>
+                <option value="">Year</option>
                 {availableYears.map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
@@ -1008,37 +1073,93 @@ Top Movers: ${topMovers} ${topDecr}
             </div>
           </div>
         </div>
-        {/* Search Bar */}
+        {/* Search Bar with commodity datalist embedded */}
         <div className="ca-search-row">
-          <Search size={18} color="#64748b" />
-          <input
-            type="text"
-            className="ca-search-input"
-            placeholder="Search by brand, commodity, size, store, year, month..."
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minWidth: 360, marginRight: 8 }}>
+            <Search size={18} color="#64748b" style={{ position: 'absolute', left: 10 }} />
+            <input
+              type="text"
+              className="ca-search-input"
+              placeholder="Enter commodity"
+              value={searchTerm}
+              onFocus={() => setShowSuggestions(true)}
+              onChange={e => {
+                const v = e.target.value;
+                setSearchTerm(v);
                 setCurrentPage(1);
               }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", padding: "4px" }}
-            >
-              <X size={18} />
-            </button>
-          )}
+              onBlur={e => {
+                const v = e.target.value;
+                const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
+                if (match && match !== 'all') setSelectedCommodity(match);
+                else setSelectedCommodity('all');
+                // delay hiding to allow click on suggestion
+                setTimeout(() => setShowSuggestions(false), 120);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const v = e.currentTarget.value;
+                  const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
+                  if (match && match !== 'all') setSelectedCommodity(match);
+                  else setSelectedCommodity('all');
+                }
+              }}
+              style={{ paddingLeft: 36, minWidth: 260 }}
+            />
+            {showSuggestions && (
+              (() => {
+                const q = String(searchTerm || "").trim().toLowerCase();
+                const suggestions = uniqueCommodities.filter(c => c && c !== 'all' && c.toLowerCase().includes(q));
+                // show all matching suggestions; the container keeps its size via maxHeight and scroll
+                const limited = suggestions;
+                if (limited.length === 0) return null;
+                return (
+                  <div style={{ position: 'absolute', top: '42px', left: 0, right: 'auto', zIndex: 1200, width: '100%', maxWidth: 520 }}>
+                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(2,6,23,0.08)', maxHeight: 200, overflowY: 'auto' }}>
+                      {limited.map((c, i) => (
+                        <div
+                          key={c + '_' + i}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setSearchTerm(c); setSelectedCommodity(c); setShowSuggestions(false); setCurrentPage(1); }}
+                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: i < limited.length - 1 ? '1px solid #f1f5f9' : 'none' }}
+                        >
+                          {c}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(""); setCurrentPage(1); setSelectedCommodity('all'); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", padding: "4px", marginLeft: 4 }}
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+          <select
+            className="ca-select"
+            value={selectedBrand}
+            onChange={e => { setSelectedBrand(e.target.value); setCurrentPage(1); }}
+            style={{ minWidth: 160, marginRight: 8 }}
+          >
+            <option value="all">Select brand</option>
+            {uniqueBrands.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
           <span style={{ fontSize: "0.85rem", color: "#64748b", marginLeft: "auto" }}>
             Showing <strong>{paginatedData.length}</strong> of <strong>{totalRecords}</strong>
           </span>
         </div>
-        <div className="ca-table-container" ref={tableRef}>
-          <table className="ca-table">
-            <thead>
+        {selectedCommodity !== "all" ? (
+          <>
+            <div className="ca-table-container" ref={tableRef}>
+              <table className="ca-table">
+                <thead>
                 <tr style={{ textAlign: "left" }}>
                   <th className="ca-th" onClick={() => { setSortBy('brand'); setSortDir(sortBy === 'brand' && sortDir === 'asc' ? 'desc' : 'asc'); }} style={{ cursor: 'pointer' }}>
                     BRAND {sortBy === 'brand' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
@@ -1052,12 +1173,6 @@ Top Movers: ${topMovers} ${topDecr}
                   <th className="ca-th" onClick={() => { setSortBy('store'); setSortDir(sortBy === 'store' && sortDir === 'asc' ? 'desc' : 'asc'); }} style={{ cursor: 'pointer' }}>
                     STORE {sortBy === 'store' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th className="ca-th" onClick={() => { setSortBy('year'); setSortDir(sortBy === 'year' && sortDir === 'asc' ? 'desc' : 'asc'); }} style={{ cursor: 'pointer' }}>
-                    YEAR {sortBy === 'year' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </th>
-                  <th className="ca-th" onClick={() => { setSortBy('month'); setSortDir(sortBy === 'month' && sortDir === 'asc' ? 'desc' : 'asc'); }} style={{ cursor: 'pointer' }}>
-                    MONTH {sortBy === 'month' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </th>
                   <th className="ca-th">PREVAILING PRICE</th>
                   <th className="ca-th">SRP</th>
                   <th className="ca-th">CURRENT PRICE</th>
@@ -1070,7 +1185,7 @@ Top Movers: ${topMovers} ${topDecr}
             <tbody>
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan="13" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
+                  <td colSpan="11" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
                     {searchTerm ? "No records match your search" : "No data available for the selected filters"}
                   </td>
                 </tr>
@@ -1116,21 +1231,10 @@ Top Movers: ${topMovers} ${topDecr}
                       </td>
                       <td className="ca-td">
                         <div style={{ color: "#475569" }}>
-                          <button
-                            onClick={() => openStoresModal(item._stores || [item.store])}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#475569', textDecoration: 'underline' }}
-                            aria-label={`Show stores for ${item.commodity} ${item.brand}`}
-                          >
-                            {item.store}
-                          </button>
+                          <div style={{ color: '#475569' }}>{item.store}</div>
                         </div>
                       </td>
-                      <td className="ca-td">
-                        <div style={{ color: "#475569", fontWeight: 700 }}>{(item.year && String(item.year).trim() !== "") ? item.year : "--"}</div>
-                      </td>
-                      <td className="ca-td">
-                        <div style={{ color: "#475569" }}>{(item.month && String(item.month).trim() !== "") ? (typeof item.month === 'number' ? MONTHS[item.month - 1] || item.month : item.month) : "--"}</div>
-                      </td>
+
                       <td style={tdStyle}>
                         <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>
                           {Number(item.prevailingPrice) === 0 || !item.prevailingPrice
@@ -1192,273 +1296,54 @@ Top Movers: ${topMovers} ${topDecr}
                 })
               )}
             </tbody>
-          </table>
-        </div>
-        {/* Pagination */}
-        {totalPages > 0 && (
-          <div className="ca-pagination" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              className="ca-pagination-btn"
-              style={{ opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? "not-allowed" : "pointer" }}
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-              Page
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={totalPages}
-              value={currentPage}
-              onChange={(e) => {
-                const v = Number(e.target.value) || 1;
-                const clamped = Math.max(1, Math.min(totalPages, Math.floor(v)));
-                setCurrentPage(clamped);
-              }}
-              style={{ width: 64, padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}
-            />
-            <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-              of <strong>{totalPages}</strong>
-            </span>
-            <button
-              className="ca-pagination-btn"
-              style={{ opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight size={18} />
-            </button>
+              </table>
+            </div>
+            {/* Pagination */}
+            {totalPages > 0 && (
+              <div className="ca-pagination" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  className="ca-pagination-btn"
+                  style={{ opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? "not-allowed" : "pointer" }}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
+                  Page
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={currentPage}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 1;
+                    const clamped = Math.max(1, Math.min(totalPages, Math.floor(v)));
+                    setCurrentPage(clamped);
+                  }}
+                  style={{ width: 64, padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}
+                />
+                <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
+                  of <strong>{totalPages}</strong>
+                </span>
+                <button
+                  className="ca-pagination-btn"
+                  style={{ opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: 32, color: "#64748b" }}>
+            Please select a commodity to view the table.
           </div>
         )}
       </div>
-
-        {/* Stores Modal */}
-        {showStoresModal && (
-          <div style={modalOverlayStyle} onClick={() => setShowStoresModal(false)}>
-            <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div>
-                  <h4 style={{ margin: 0, color: "#0f172a" }}>Stores</h4>
-                  <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.9rem" }}>Stores included in this bucket</p>
-                </div>
-                <button onClick={() => setShowStoresModal(false)} style={modalCloseButtonStyle}>✕</button>
-              </div>
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                  {storesModalItems.length === 0 ? (
-                    <li style={{ padding: '8px 0', color: '#94a3b8' }}>No stores</li>
-                  ) : (
-                    storesModalItems.map((s, i) => (
-                      <li key={i} style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9', color: '#0f172a' }}>{s}</li>
-                    ))
-                  )}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Report Modal */}
-      {showReportModal && (
-        <div style={modalOverlayStyle} onClick={() => setShowReportModal(false)}>
-          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div>
-                <h4 style={{ margin: 0, color: "#0f172a" }}>Report Preview</h4>
-                <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.9rem" }}>Summary and sample rows before export</p>
-              </div>
-              <button onClick={() => setShowReportModal(false)} style={modalCloseButtonStyle}>✕</button>
-            </div>
-
-            {/* Month/Year selection */}
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "16px", flexWrap: "wrap" }}>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>Select Month & Year:</div>
-              <select
-                value={selectedReportMonth}
-                onChange={e => setSelectedReportMonth(e.target.value)}
-                style={{ ...selectStyle, minWidth: 100 }}
-              >
-                <option value="">All Months</option>
-                {availableMonths.map(m => (
-                  <option key={m} value={m}>{MONTHS[m - 1]}</option>
-                ))}
-              </select>
-              <select
-                value={selectedReportYear}
-                onChange={e => setSelectedReportYear(e.target.value)}
-                style={{ ...selectStyle, minWidth: 100 }}
-              >
-                <option value="">All Years</option>
-                {availableYears.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <span style={{ color: "#64748b", fontSize: "0.9rem" }}>
-                {selectedReportMonth && selectedReportYear
-                  ? `Report for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`
-                  : selectedReportYear
-                    ? `Report for ${selectedReportYear}`
-                    : "Report for all months/years"}
-              </span>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
-              <div style={summaryChipStyle}>Total Records: {totalRecords}</div>
-              <div style={summaryChipStyle}>Higher than Previous: {higherPreviousCount}</div>
-              <div style={summaryChipStyle}>Higher than SRP: {higherSRPCount}</div>
-              <div style={summaryChipStyle}>Decreased: {decreasedCount}</div>
-            </div>
-
-              <div style={narrativeBoxStyle}>
-                <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>Situationer</div>
-                <textarea
-                  value={reportNarrative}
-                  onChange={(e) => { setReportNarrative(e.target.value); setIsNarrativeEdited(true); }}
-                  style={{
-                    width: "100%",
-                    minHeight: 120,
-                    resize: "vertical",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    color: "#475569",
-                    lineHeight: 1.4,
-                    fontSize: "0.95rem",
-                    background: "#fff"
-                  }}
-                />
-              </div>
-
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflowX: "auto", overflowY: "hidden", marginBottom: "16px" }}>
-              <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "#f8fafc", textAlign: "left" }}>
-                    <th style={modalThStyle}>Brand</th>
-                    <th style={modalThStyle}>Commodity</th>
-                    <th style={modalThStyle}>Store</th>
-                    <th style={modalThStyle}>Prevailing Price</th>
-                    <th style={modalThStyle}>SRP</th>
-                    <th style={modalThStyle}>Current Price</th>
-                    <th style={modalThStyle}>Previous Price</th>
-                    <th style={modalThStyle}>Price Change</th>
-                    <th style={modalThStyle}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" style={{ textAlign: "center", padding: "16px", color: "#94a3b8" }}>No data to preview</td>
-                    </tr>
-                  ) : (
-                    previewRows.map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={modalTdStyle}>{row.brand || "--"}</td>
-                        <td style={modalTdStyle}>{row.commodity}</td>
-                        <td style={modalTdStyle}>{row.store}</td>
-                        <td style={modalTdStyle}>{Number(row.prevailingPrice) === 0 || Number.isNaN(Number(row.prevailingPrice)) ? "--" : `₱${Number(row.prevailingPrice).toFixed(2)}`}</td>
-                        <td style={modalTdStyle}>{Number(row.srp) === 0 || Number.isNaN(Number(row.srp)) ? "--" : `₱${Number(row.srp).toFixed(2)}`}</td>
-                        <td style={modalTdStyle}>{Number(row.currentPrice) === 0 || Number.isNaN(Number(row.currentPrice)) ? "--" : `₱${Number(row.currentPrice).toFixed(2)}`}</td>
-                        <td style={modalTdStyle}>{Number(row.previousPrice) === 0 || Number.isNaN(Number(row.previousPrice)) ? "--" : `₱${Number(row.previousPrice).toFixed(2)}`}</td>
-                        <td style={modalTdStyle}>
-                          {row.priceChange === 0 || row.priceChange === undefined || row.priceChange === null
-                            ? "--"
-                            : `${row.priceChange > 0 ? "+" : ""}₱${Number(row.priceChange).toFixed(2)} (${row.percentChange > 0 ? "+" : ""}${Number(row.percentChange).toFixed(1)}%)`
-                          }
-                        </td>
-                        <td style={modalTdStyle}>
-                          <span style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            padding: "4px 12px",
-                            borderRadius: "6px",
-                            fontSize: "0.75rem",
-                            fontWeight: "700",
-                            background: getStatusLabel(row.statusType).bgColor,
-                            color: getStatusLabel(row.statusType).color,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px"
-                          }}>
-                            ● {getStatusLabel(row.statusType).label}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-              <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Choose export format:</div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <button
-                  onClick={async () => {
-                    setIsExporting(true);
-                    try {
-                      await generatePDF({
-                        reportSource,
-                        selectedReportMonth,
-                        selectedReportYear,
-                        summaryNarrative: reportNarrative || summaryNarrative,
-                        MONTHS,
-                        getStatusLabel
-                      });
-                      if (window.toast && window.toast.success) window.toast.success('PDF successfully exported!');
-                    } catch (e) {
-                      console.error('PDF export failed', e);
-                      if (window.toast && window.toast.error) window.toast.error('PDF export failed');
-                    } finally {
-                      setIsExporting(false);
-                      setShowReportModal(false);
-                    }
-                  }}
-                  disabled={isExporting || totalRecords === 0}
-                  style={{
-                    ...exportButtonStyle,
-                    opacity: isExporting || totalRecords === 0 ? 0.6 : 1,
-                    cursor: isExporting || totalRecords === 0 ? "not-allowed" : "pointer"
-                  }}
-                >
-                  <Download size={16} /> PDF
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await generateWord({
-                        reportSource,
-                        selectedReportMonth,
-                        selectedReportYear,
-                        summaryNarrative: reportNarrative || summaryNarrative,
-                        getStatusLabel
-                      });
-                      if (window.toast && window.toast.success) window.toast.success('Word exported');
-                    } catch (e) {
-                      console.error('Word export failed', e);
-                      if (window.toast && window.toast.error) window.toast.error('Word export failed');
-                    } finally {
-                      setShowReportModal(false);
-                    }
-                  }}
-                  disabled={totalRecords === 0}
-                  style={{
-                    ...exportButtonStyle,
-                    background: "#0f172a",
-                    boxShadow: "0 2px 4px rgba(15, 23, 42, 0.2)",
-                    opacity: totalRecords === 0 ? 0.6 : 1,
-                    cursor: totalRecords === 0 ? "not-allowed" : "pointer"
-                  }}
-                >
-                  <Download size={16} /> Word
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import autoTable from "jspdf-autotable";
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun } from "docx";
 
 // Generate PDF report from a provided data source and options
-export async function generatePDF({ reportSource = [], selectedReportMonth, selectedReportYear, summaryNarrative = "", MONTHS = [], getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
+export async function generatePDF({ reportSource = [], selectedReportMonth, selectedReportYear, selectedCommodity = null, selectedBrand = null, summaryNarrative = "", MONTHS = [], getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
   const pdf = new jsPDF("l", "mm", "letter");
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -18,6 +18,8 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   pdf.setFontSize(18);
   pdf.setFont("helvetica", "bold");
   let reportTitle = "Comparative Price Analysis Report";
+  if (selectedCommodity) reportTitle += ` — ${String(selectedCommodity)}`;
+  if (selectedBrand) reportTitle += ` (${String(selectedBrand)})`;
   if (selectedReportMonth && selectedReportYear) {
     reportTitle += ` for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`;
   }
@@ -48,27 +50,38 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   yPosition += 12;
 
   // Helpers
-  const formatCurrency = (value) => `Php ${(Number(value) || 0).toFixed(2)}`;
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === "") return "--";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "--";
+    return `Php ${n.toFixed(2)}`;
+  };
   const formatSignedCurrency = (value) => {
-    const val = Number(value) || 0;
+    if (value === null || value === undefined || value === "") return "--";
+    const val = Number(value);
+    if (!Number.isFinite(val)) return "--";
     const sign = val < 0 ? "-" : "";
     return `${sign}Php ${Math.abs(val).toFixed(2)}`;
   };
   const formatSignedPercent = (value) => {
-    const val = Number(value) || 0;
+    if (value === null || value === undefined || value === "") return "--";
+    const val = Number(value);
+    if (!Number.isFinite(val)) return "--";
     const sign = val < 0 ? "-" : "";
     return `${sign}${Math.abs(val).toFixed(1)}%`;
   };
   const sanitize = (v) => String(v ?? "").replace(/±/g, "");
   // Format currency for Stores table: no '+' for positives, use 'Php' prefix, '-' for negatives
   const formatCurrencyNoPlus = (value) => {
-    const val = Number(value) || 0;
+    if (value === null || value === undefined || value === "") return "--";
+    const val = Number(value);
+    if (!Number.isFinite(val)) return "--";
     return (val < 0 ? "-" : "") + `Php ${Math.abs(val).toFixed(2)}`;
   };
 
   // Determine top lists from reportSource
-  const top5Highest = [...reportSource].sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0)).slice(0, 5);
-  const top5Lowest = [...reportSource].sort((a, b) => (a.priceChange || 0) - (b.priceChange || 0)).slice(0, 5);
+  const top5Highest = [...reportSource].sort((a, b) => ( (b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ( (a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity)).slice(0, 5);
+  const top5Lowest = [...reportSource].sort((a, b) => ( (a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ( (b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity)).slice(0, 5);
 
   // Top 5 Highest
   let reportYPosition = yPosition;
@@ -79,11 +92,12 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
 
   const highestTableData = top5Highest.map(item => {
     const statusInfo = getStatusLabel(item.statusType);
+    const storeField = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || "--");
     return [
       item.brand || "--",
       item.commodity,
       item.size || "--",
-      item.store,
+      storeField,
       formatCurrency(item.previousPrice),
       formatCurrency(item.srp),
       formatCurrency(item.currentPrice),
@@ -115,26 +129,30 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   yPosition += 8;
 
   const exportSource = reportSource;
-  const tableData = exportSource.map(item => [
-    sanitize(item.brand || "--"),
-    sanitize(item.commodity),
-    sanitize(item.size || "--"),
-    sanitize(item.store),
-    sanitize(formatCurrency(item.prevailingPrice)),
-    sanitize(formatCurrency(item.srp)),
-    sanitize(formatCurrency(item.currentPrice)),
-    sanitize(formatSignedCurrency(item.priceChange)),
-    sanitize(formatSignedPercent(item.percentChange)),
-    sanitize(item.isCompliant ? "Compliant" : "Non-Compliant")
-  ]);
+    const tableData = exportSource.map(item => {
+    const storeField = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || "--");
+    return [
+      sanitize(item.brand || "--"),
+      sanitize(item.commodity),
+      sanitize(item.size || "--"),
+      sanitize(storeField),
+        sanitize(formatCurrency(item.prevailingPrice)),
+        sanitize(formatCurrency(item.srp)),
+        sanitize(formatCurrency(item.currentPrice)),
+        sanitize(formatSignedCurrency(item.priceChange)),
+        sanitize(formatSignedPercent(item.percentChange)),
+      sanitize(item.isCompliant ? "Compliant" : "Non-Compliant")
+    ];
+  });
 
   const lowestTableData = top5Lowest.map(item => {
     const statusInfo = getStatusLabel(item.statusType);
+    const storeField = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || "--");
     return [
       item.brand || "--",
       item.commodity,
       item.size || "--",
-      item.store,
+      storeField,
       formatCurrency(item.previousPrice),
       formatCurrency(item.srp),
       formatCurrency(item.currentPrice),
@@ -169,9 +187,11 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   const storesHighestSRP = (() => {
     const storeData = {};
     reportSource.forEach(item => {
-      if (item.store && item.srp) {
-        if (!storeData[item.store]) storeData[item.store] = [];
-        storeData[item.store].push(Number(item.srp) || 0);
+      const storeKey = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || null);
+      if (storeKey && item.srp !== null && item.srp !== undefined) {
+        if (!storeData[storeKey]) storeData[storeKey] = [];
+        const n = Number(item.srp);
+        if (Number.isFinite(n)) storeData[storeKey].push(n);
       }
     });
     return Object.entries(storeData)
@@ -206,28 +226,38 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   pdf.save(`Comparative_Analysis_${selectedReportYear || "AllYears"}_${selectedReportMonth ? MONTHS[selectedReportMonth - 1] : "AllMonths"}.pdf`);
 }
 
-export async function generateWord({ reportSource = [], selectedReportMonth, selectedReportYear, summaryNarrative = "", getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
-  const formatCurrency = v => `Php ${(Number(v) || 0).toFixed(2)}`;
-  const formatSignedCurrency = v => {
-    const val = Number(v) || 0;
+export async function generateWord({ reportSource = [], selectedReportMonth, selectedReportYear, selectedCommodity = null, selectedBrand = null, summaryNarrative = "", getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === "") return "--";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "--";
+    return `Php ${n.toFixed(2)}`;
+  };
+  const formatSignedCurrency = (value) => {
+    if (value === null || value === undefined || value === "") return "--";
+    const val = Number(value);
+    if (!Number.isFinite(val)) return "--";
     const sign = val < 0 ? "-" : "";
     return `${sign}Php ${Math.abs(val).toFixed(2)}`;
   };
-  const formatSignedPercent = v => {
-    const val = Number(v) || 0;
+  const formatSignedPercent = (value) => {
+    if (value === null || value === undefined || value === "") return "--";
+    const val = Number(value);
+    if (!Number.isFinite(val)) return "--";
     const sign = val < 0 ? "-" : "";
     return `${sign}${Math.abs(val).toFixed(1)}%`;
   };
   const sanitize = v => String(v ?? "").replace(/±/g, "").replace(/\+/g, "");
 
-  const top5Highest = [...reportSource].sort((a, b) => (b.priceChange || 0) - (a.priceChange || 0)).slice(0,5);
-  const top5Lowest = [...reportSource].sort((a, b) => (a.priceChange || 0) - (b.priceChange || 0)).slice(0,5);
+  const top5Highest = [...reportSource].sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity)).slice(0,5);
+  const top5Lowest = [...reportSource].sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity)).slice(0,5);
   const storesHighestSRP = (() => {
     const storeData = {};
     reportSource.forEach(item => {
-      if (item.store && item.srp) {
+      if (item.store && item.srp !== null && item.srp !== undefined) {
         if (!storeData[item.store]) storeData[item.store] = [];
-        storeData[item.store].push(Number(item.srp) || 0);
+        const n = Number(item.srp);
+        if (Number.isFinite(n)) storeData[item.store].push(n);
       }
     });
     return Object.entries(storeData)
@@ -254,32 +284,38 @@ export async function generateWord({ reportSource = [], selectedReportMonth, sel
   };
 
   const highestHeaders = ["Brand","Commodity","Size","Store", "Previous Price", "SRP", "Current Price", "Price Change (₱)", "Change (%)", "Status"];
-  const highestRows = top5Highest.map(item => [
-    sanitize(item.brand || "--"),
-    sanitize(item.commodity),
-    sanitize(item.size || "--"),
-    sanitize(item.store),
-    sanitize(formatCurrency(item.previousPrice)),
-    sanitize(formatCurrency(item.srp)),
-    sanitize(formatCurrency(item.currentPrice)),
-    sanitize(formatSignedCurrency(item.priceChange)),
-    sanitize(formatSignedPercent(item.percentChange)),
-    sanitize(getStatusLabel(item.statusType).label)
-  ]);
+  const highestRows = top5Highest.map(item => {
+    const storeField = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || "--");
+    return [
+      sanitize(item.brand || "--"),
+      sanitize(item.commodity),
+      sanitize(item.size || "--"),
+      sanitize(storeField),
+      sanitize(formatCurrency(item.previousPrice)),
+      sanitize(formatCurrency(item.srp)),
+      sanitize(formatCurrency(item.currentPrice)),
+      sanitize(formatSignedCurrency(item.priceChange)),
+      sanitize(formatSignedPercent(item.percentChange)),
+      sanitize(getStatusLabel(item.statusType).label)
+    ];
+  });
 
   const lowestHeaders = ["Brand","Commodity","Size","Store", "Previous Price", "SRP", "Current Price", "Price Change (₱)", "Change (%)", "Status"];
-  const lowestRows = top5Lowest.map(item => [
-    sanitize(item.brand || "--"),
-    sanitize(item.commodity),
-    sanitize(item.size || "--"),
-    sanitize(item.store),
-    sanitize(formatCurrency(item.previousPrice)),
-    sanitize(formatCurrency(item.srp)),
-    sanitize(formatCurrency(item.currentPrice)),
-    sanitize(formatSignedCurrency(item.priceChange)),
-    sanitize(formatSignedPercent(item.percentChange)),
-    sanitize(getStatusLabel(item.statusType).label)
-  ]);
+  const lowestRows = top5Lowest.map(item => {
+    const storeField = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || "--");
+    return [
+      sanitize(item.brand || "--"),
+      sanitize(item.commodity),
+      sanitize(item.size || "--"),
+      sanitize(storeField),
+      sanitize(formatCurrency(item.previousPrice)),
+      sanitize(formatCurrency(item.srp)),
+      sanitize(formatCurrency(item.currentPrice)),
+      sanitize(formatSignedCurrency(item.priceChange)),
+      sanitize(formatSignedPercent(item.percentChange)),
+      sanitize(getStatusLabel(item.statusType).label)
+    ];
+  });
 
   const storesHeaders = ["Store", "Average SRP", "Max SRP", "Products"];
   const storesRows = storesHighestSRP.map(item => [ item.store, formatCurrency(item.avgSRP), formatCurrency(item.maxSRP), item.productCount ]);
