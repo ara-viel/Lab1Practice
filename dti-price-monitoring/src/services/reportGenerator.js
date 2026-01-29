@@ -172,50 +172,7 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
     alternateRowStyles: { fillColor: [220, 252, 231] }
   });
 
-  // Stores with Highest SRP
-  reportYPosition = pdf.lastAutoTable.finalY + 12;
-  if (reportYPosition > pageHeight - 60) {
-    pdf.addPage();
-    reportYPosition = 15;
-  }
-
-  pdf.setFontSize(12);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("Stores with Highest Average SRP", marginLeft, reportYPosition);
-  reportYPosition += 8;
-
-  const storesHighestSRP = (() => {
-    const storeData = {};
-    reportSource.forEach(item => {
-      const storeKey = Array.isArray(item._stores) && item._stores.length ? item._stores.join(', ') : (item.store || null);
-      if (storeKey && item.srp !== null && item.srp !== undefined) {
-        if (!storeData[storeKey]) storeData[storeKey] = [];
-        const n = Number(item.srp);
-        if (Number.isFinite(n)) storeData[storeKey].push(n);
-      }
-    });
-    return Object.entries(storeData)
-      .map(([store, srps]) => ({ store, avgSRP: srps.reduce((a, b) => a + b, 0) / srps.length, maxSRP: Math.max(...srps), productCount: srps.length }))
-      .sort((a, b) => b.avgSRP - a.avgSRP)
-      .slice(0, 5);
-  })();
-
-  const storesTableData = storesHighestSRP.map(item => [
-    sanitize(item.store),
-    sanitize(formatCurrencyNoPlus(item.avgSRP)),
-    sanitize(formatCurrencyNoPlus(item.maxSRP)),
-    sanitize(item.productCount.toString())
-  ]);
-
-  autoTable(pdf, {
-    head: [["STORE", "AVERAGE SRP", "MAX SRP", "PRODUCTS"]],
-    body: storesTableData,
-    startY: reportYPosition,
-    margin: { top: 10, right: 10, bottom: 10, left: 10 },
-    styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
-    headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: "bold", halign: 'center' },
-    alternateRowStyles: { fillColor: [235, 245, 254] }
-  });
+  // (Stores with Highest Average SRP section removed)
 
   const footerYPosition = pdf.lastAutoTable.finalY || reportYPosition;
   if (footerYPosition < pageHeight - 20) {
@@ -226,7 +183,7 @@ export async function generatePDF({ reportSource = [], selectedReportMonth, sele
   pdf.save(`Comparative_Analysis_${selectedReportYear || "AllYears"}_${selectedReportMonth ? MONTHS[selectedReportMonth - 1] : "AllMonths"}.pdf`);
 }
 
-export async function generateWord({ reportSource = [], selectedReportMonth, selectedReportYear, selectedCommodity = null, selectedBrand = null, summaryNarrative = "", getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
+export async function generateWord({ reportSource = [], selectedReportMonth, selectedReportYear, selectedCommodity = null, selectedBrand = null, summaryNarrative = "", MONTHS = [], getStatusLabel = () => ({ label: 'UNKNOWN' }) }) {
   const formatCurrency = (value) => {
     if (value === null || value === undefined || value === "") return "--";
     const n = Number(value);
@@ -251,20 +208,7 @@ export async function generateWord({ reportSource = [], selectedReportMonth, sel
 
   const top5Highest = [...reportSource].sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity)).slice(0,5);
   const top5Lowest = [...reportSource].sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity)).slice(0,5);
-  const storesHighestSRP = (() => {
-    const storeData = {};
-    reportSource.forEach(item => {
-      if (item.store && item.srp !== null && item.srp !== undefined) {
-        if (!storeData[item.store]) storeData[item.store] = [];
-        const n = Number(item.srp);
-        if (Number.isFinite(n)) storeData[item.store].push(n);
-      }
-    });
-    return Object.entries(storeData)
-      .map(([store, srps]) => ({ store, avgSRP: srps.reduce((a,b)=>a+b,0)/srps.length, maxSRP: Math.max(...srps), productCount: srps.length }))
-      .sort((a,b)=>b.avgSRP - a.avgSRP)
-      .slice(0,5);
-  })();
+  // (Stores with Highest Average SRP computation removed)
 
   const makeTable = (headers, rows) => {
     const headerRow = new TableRow({
@@ -317,12 +261,24 @@ export async function generateWord({ reportSource = [], selectedReportMonth, sel
     ];
   });
 
-  const storesHeaders = ["Store", "Average SRP", "Max SRP", "Products"];
-  const storesRows = storesHighestSRP.map(item => [ item.store, formatCurrency(item.avgSRP), formatCurrency(item.maxSRP), item.productCount ]);
+  // (Stores table removed)
 
   const narrativeLines = summaryNarrative.replace(/\r?\n|\r/g, " ").trim().split(/\n|\r/).filter(Boolean);
 
-  const doc = new Document({ sections: [{ properties: {}, children: [ new Paragraph({ text: "Comparative Price Analysis Report", heading: "Heading1", spacing: { after: 200 } }), new Paragraph({ text: `Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, spacing: { after: 200 } }), new Paragraph({ text: "Situationer", heading: "Heading2", spacing: { after: 100 } }), ...narrativeLines.map(line => new Paragraph({ text: line, spacing: { after: 80 } })), new Paragraph({ text: "Top 5 Highest Price Increases", heading: "Heading2", spacing: { after: 100 } }), new Table({ rows: makeTable(highestHeaders, highestRows) }), new Paragraph({ text: "Top 5 Lowest Price Changes (Decreases)", heading: "Heading2", spacing: { after: 100 } }), new Table({ rows: makeTable(lowestHeaders, lowestRows) }), new Paragraph({ text: "Stores with Highest Average SRP", heading: "Heading2", spacing: { after: 100 } }), new Table({ rows: makeTable(storesHeaders, storesRows) }), new Paragraph({ text: "This report summarizes prevailing prices and compliance status across monitored establishments.", spacing: { before: 200, after: 100 } }) ] }] });
+  // Build report title and summary title including selected month/year when provided
+  let reportTitle = "Comparative Price Analysis Report";
+  if (selectedCommodity) reportTitle += ` — ${String(selectedCommodity)}`;
+  if (selectedBrand) reportTitle += ` (${String(selectedBrand)})`;
+  if (selectedReportMonth && selectedReportYear) {
+    reportTitle += ` for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`;
+  }
+
+  let summaryTitle = "Situationer";
+  if (selectedReportMonth && selectedReportYear) {
+    summaryTitle += ` for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`;
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children: [ new Paragraph({ text: reportTitle, heading: "Heading1", spacing: { after: 200 } }), new Paragraph({ text: `Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, spacing: { after: 200 } }), new Paragraph({ text: summaryTitle, heading: "Heading2", spacing: { after: 100 } }), ...narrativeLines.map(line => new Paragraph({ text: line, spacing: { after: 80 } })), new Paragraph({ text: "Top 5 Highest Price Increases", heading: "Heading2", spacing: { after: 100 } }), new Table({ rows: makeTable(highestHeaders, highestRows) }), new Paragraph({ text: "Top 5 Lowest Price Changes (Decreases)", heading: "Heading2", spacing: { after: 100 } }), new Table({ rows: makeTable(lowestHeaders, lowestRows) }), new Paragraph({ text: "This report summarizes prevailing prices and compliance status across monitored establishments.", spacing: { before: 200, after: 100 } }) ] }] });
 
   const blob = await Packer.toBlob(doc);
   const url = window.URL.createObjectURL(blob);

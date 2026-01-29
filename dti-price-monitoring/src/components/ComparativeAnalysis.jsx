@@ -951,17 +951,10 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
   const topDecreaseAmount = topDecrease?.priceChange || 0;
 
   const summaryNarrative = useMemo(() => {
-    const header = (selectedReportMonth && selectedReportYear)
-      ? `Report for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`
-      : selectedReportYear
-        ? `Report for ${selectedReportYear}`
-        : "Report for all months/years";
-
     const topMovers = topIncrease ? `The highest increase was ${topIncrease.commodity} at ${topIncrease.store} (₱${topIncreaseAmount.toFixed(2)}).` : "No data available";
     const topDecr = (topDecrease && topDecreaseAmount !== 0) ? `The largest decrease was ${topDecrease.commodity} at ${topDecrease.store} (₱${topDecreaseAmount.toFixed(2)}).` : "";
     return `
-${header}
-Price Movement Summary: Across ${totalRecords} monitored products, the average price change is ${avgChangeSign}₱${avgChangeValue}.
+Summary: Across ${totalRecords} monitored products, the average price change is ${avgChangeSign}₱${avgChangeValue}.
 Status breakdown: ${higherPreviousCount} higher than previous price, ${higherSRPCount} higher than SRP, ${decreasedCount} decreased.
 
 Top Movers: ${topMovers} ${topDecr}
@@ -981,7 +974,7 @@ Top Movers: ${topMovers} ${topDecr}
     }
   }, [selectedReportMonth, selectedReportYear, showReportModal, summaryNarrative]);
 
-  // Auto-open report modal when a commodity is selected by the user (skip initial mount)
+  // Track previous commodity selection but do NOT auto-open the report modal
   const _prevCommodity = useRef(selectedCommodity);
   const _mounted = useRef(false);
   useEffect(() => {
@@ -990,15 +983,9 @@ Top Movers: ${topMovers} ${topDecr}
       _prevCommodity.current = selectedCommodity;
       return;
     }
-    if (selectedCommodity && selectedCommodity !== 'all' && _prevCommodity.current !== selectedCommodity) {
-      // only open if we have report data available
-      if (reportSource && reportSource.length > 0) {
-        setReportNarrative(summaryNarrative);
-        setShowReportModal(true);
-      }
-    }
+    // update previous commodity tracking when user changes selection
     _prevCommodity.current = selectedCommodity;
-  }, [selectedCommodity, reportSource, summaryNarrative]);
+  }, [selectedCommodity]);
 
   // Auto-select commodity when a brand is chosen (only when commodity is not already selected)
   useEffect(() => {
@@ -1411,6 +1398,199 @@ Top Movers: ${topMovers} ${topDecr}
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div style={modalOverlayStyle} onClick={() => setShowReportModal(false)}>
+          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div>
+                <h4 style={{ margin: 0, color: "#0f172a" }}>Report Preview</h4>
+                <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.9rem" }}>Summary and sample rows before export</p>
+              </div>
+              <button onClick={() => setShowReportModal(false)} style={modalCloseButtonStyle}>✕</button>
+            </div>
+
+            {/* Month/Year selection */}
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "16px", flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 600, color: "#0f172a" }}>Select Month & Year:</div>
+              <select
+                value={selectedReportMonth}
+                onChange={e => setSelectedReportMonth(e.target.value)}
+                style={{ ...selectStyle, minWidth: 100 }}
+              >
+                <option value="">All Months</option>
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>{MONTHS[m - 1]}</option>
+                ))}
+              </select>
+              <select
+                value={selectedReportYear}
+                onChange={e => setSelectedReportYear(e.target.value)}
+                style={{ ...selectStyle, minWidth: 100 }}
+              >
+                <option value="">All Years</option>
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              {/* Report label intentionally hidden per user preference */}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "12px" }}>
+              <div style={summaryChipStyle}>Total Records: {totalRecords}</div>
+              <div style={summaryChipStyle}>Higher than Previous: {higherPreviousCount}</div>
+              <div style={summaryChipStyle}>Higher than SRP: {higherSRPCount}</div>
+              <div style={summaryChipStyle}>Decreased: {decreasedCount}</div>
+            </div>
+
+              <div style={narrativeBoxStyle}>
+                <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>Situationer</div>
+                <textarea
+                  value={reportNarrative}
+                  onChange={(e) => { setReportNarrative(e.target.value); setIsNarrativeEdited(true); }}
+                  style={{
+                    width: "100%",
+                    minHeight: 120,
+                    resize: "vertical",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                    color: "#475569",
+                    lineHeight: 1.4,
+                    fontSize: "0.95rem",
+                    background: "#fff"
+                  }}
+                />
+              </div>
+
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflowX: "auto", overflowY: "hidden", marginBottom: "16px" }}>
+              <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", textAlign: "left" }}>
+                    <th style={modalThStyle}>Brand</th>
+                    <th style={modalThStyle}>Commodity</th>
+                    <th style={modalThStyle}>Store</th>
+                    <th style={modalThStyle}>Prevailing Price</th>
+                    <th style={modalThStyle}>SRP</th>
+                    <th style={modalThStyle}>Current Price</th>
+                    <th style={modalThStyle}>Previous Price</th>
+                    <th style={modalThStyle}>Price Change</th>
+                    <th style={modalThStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" style={{ textAlign: "center", padding: "16px", color: "#94a3b8" }}>No data to preview</td>
+                    </tr>
+                  ) : (
+                    previewRows.map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={modalTdStyle}>{row.brand || "--"}</td>
+                        <td style={modalTdStyle}>{row.commodity}</td>
+                        <td style={modalTdStyle}>{row.store}</td>
+                        <td style={modalTdStyle}>{Number(row.prevailingPrice) === 0 || Number.isNaN(Number(row.prevailingPrice)) ? "--" : `₱${Number(row.prevailingPrice).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>{Number(row.srp) === 0 || Number.isNaN(Number(row.srp)) ? "--" : `₱${Number(row.srp).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>{Number(row.currentPrice) === 0 || Number.isNaN(Number(row.currentPrice)) ? "--" : `₱${Number(row.currentPrice).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>{Number(row.previousPrice) === 0 || Number.isNaN(Number(row.previousPrice)) ? "--" : `₱${Number(row.previousPrice).toFixed(2)}`}</td>
+                        <td style={modalTdStyle}>
+                          {row.priceChange === 0 || row.priceChange === undefined || row.priceChange === null
+                            ? "--"
+                            : `${row.priceChange > 0 ? "+" : ""}₱${Number(row.priceChange).toFixed(2)} (${row.percentChange > 0 ? "+" : ""}${Number(row.percentChange).toFixed(1)}%)`
+                          }
+                        </td>
+                        <td style={modalTdStyle}>
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "4px 12px",
+                            borderRadius: "6px",
+                            fontSize: "0.75rem",
+                            fontWeight: "700",
+                            background: getStatusLabel(row.statusType).bgColor,
+                            color: getStatusLabel(row.statusType).color,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px"
+                          }}>
+                            ● {getStatusLabel(row.statusType).label}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+              <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Choose export format:</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button
+                  onClick={async () => {
+                    setIsExporting(true);
+                    try {
+                      await generatePDF({
+                        reportSource,
+                        selectedReportMonth,
+                        selectedReportYear,
+                        summaryNarrative: reportNarrative || summaryNarrative,
+                        MONTHS,
+                        getStatusLabel
+                      });
+                      if (window.toast && window.toast.success) window.toast.success('PDF successfully exported!');
+                    } catch (e) {
+                      console.error('PDF export failed', e);
+                      if (window.toast && window.toast.error) window.toast.error('PDF export failed');
+                    } finally {
+                      setIsExporting(false);
+                      setShowReportModal(false);
+                    }
+                  }}
+                  disabled={isExporting || totalRecords === 0}
+                  style={{
+                    ...exportButtonStyle,
+                    opacity: isExporting || totalRecords === 0 ? 0.6 : 1,
+                    cursor: isExporting || totalRecords === 0 ? "not-allowed" : "pointer"
+                  }}
+                >
+                  <Download size={16} /> PDF
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await generateWord({
+                        reportSource,
+                        selectedReportMonth,
+                        selectedReportYear,
+                        summaryNarrative: reportNarrative || summaryNarrative,
+                        getStatusLabel
+                      });
+                      if (window.toast && window.toast.success) window.toast.success('Word exported');
+                    } catch (e) {
+                      console.error('Word export failed', e);
+                      if (window.toast && window.toast.error) window.toast.error('Word export failed');
+                    } finally {
+                      setShowReportModal(false);
+                    }
+                  }}
+                  disabled={totalRecords === 0}
+                  style={{
+                    ...exportButtonStyle,
+                    background: "#0f172a",
+                    boxShadow: "0 2px 4px rgba(15, 23, 42, 0.2)",
+                    opacity: totalRecords === 0 ? 0.6 : 1,
+                    cursor: totalRecords === 0 ? "not-allowed" : "pointer"
+                  }}
+                >
+                  <Download size={16} /> Word
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
