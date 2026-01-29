@@ -26,14 +26,30 @@ export default function Inquiry({ prices }) {
     () => prices.filter((p) => {
       const srp = Number(p.srp || 0);
       const price = Number(p.price || 0);
-      const prevMonthPrice = Number(p.prevMonthPrice || 0);
-      const referencePrice = srp > 0 ? srp : prevMonthPrice;
+      const currentYear = Number(p.year);
+      const currentMonth = Number(p.month);
 
-      // Flagged if price exceeds SRP, or if no SRP, exceeds previous month's price
-      if (referencePrice > 0 && price > referencePrice) return true;
+      // Find previous month price dynamically (same year only)
+      let prevMonth = currentMonth - 1;
+      let prevYear = currentYear;
+      if (prevMonth < 1) {
+        prevMonth = 12;
+        prevYear -= 1;
+      }
+      const prevMonthItem = prices.find(item => 
+        item.commodity === p.commodity &&
+        item.store === p.store &&
+        Number(item.month) === prevMonth &&
+        Number(item.year) === prevYear
+      );
+      const prevMonthPrice = prevMonthItem ? Number(prevMonthItem.price || 0) : 0;
 
-      // Flagged if current price is 10% lower than previous month's price
-      if (prevMonthPrice > 0) {
+      // Flagged if price exceeds SRP, or if no SRP, exceeds previous month's price (same year only)
+      const referencePrice = srp > 0 ? srp : (prevMonthPrice > 0 ? prevMonthPrice : 0);
+      if (referencePrice > 0 && currentYear === p.year && price > referencePrice) return true;
+
+      // Flagged if current price is 10% lower than previous month's price (same year only)
+      if (prevMonthPrice > 0 && currentYear === p.year) {
         const percentChange = ((price - prevMonthPrice) / prevMonthPrice) * 100;
         if (percentChange <= -10) return true;
       }
@@ -76,6 +92,28 @@ export default function Inquiry({ prices }) {
     );
   };
 
+  const getPreviousMonthPrice = (item) => {
+    const currentMonth = Number(item.month);
+    const currentYear = Number(item.year);
+    let prevMonth = currentMonth - 1;
+    let prevYear = currentYear;
+
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+
+    // Find matching item from previous month with same commodity and store
+    const prevMonthItem = prices.find(p => 
+      p.commodity === item.commodity &&
+      p.store === item.store &&
+      Number(p.month) === prevMonth &&
+      Number(p.year) === prevYear
+    );
+
+    return prevMonthItem ? Number(prevMonthItem.price || 0) : 0;
+  };
+
   const generateContent = (items) => {
     const firstItem = items[0];
     const dateObserved = firstItem.timestamp
@@ -86,7 +124,7 @@ export default function Inquiry({ prices }) {
     const commodityRows = items.map(item => {
       const price = Number(item.price || 0);
       const srp = Number(item.srp || 0);
-      const prevMonthPrice = Number(item.prevMonthPrice || 0);
+      const prevMonthPrice = getPreviousMonthPrice(item);
       const brand = (item.brand && String(item.brand).trim()) ? item.brand : "N/A";
       const size = (item.size && String(item.size).trim()) ? item.size : "N/A";
       const commodity = (item.commodity && String(item.commodity).trim()) ? item.commodity : "N/A";
@@ -114,7 +152,7 @@ export default function Inquiry({ prices }) {
         <br/><br/>
         <p>Dear Sir/Madam:</p>
         <br/>
-        <p>In connection with the price/supply monitoring conducted at <strong><u>${firstItem.store || "your store"}</u></strong> by the Consumer Protection Division of the Department of Trade and Industry – Lanao Del Norte Provincial Office on <strong><u>${dateObserved}</u></strong>, we would like to bring your attention to the results of the said monitoring, particularly on the following:</p>
+        <p>In connection with the price/supply monitoring conducted at <strong><u>${firstItem.store || "your store"}</u></strong> by the Consumer Protection Division of the Department of Trade and Industry – Lanao Del Norte Provincial Office on <span style="background-color: #ffff00; font-weight: bold; padding: 2px 4px;"><u>${dateObserved}</u></span>, we would like to bring your attention to the results of the said monitoring, particularly on the following:</p>
         
         <table class="obs-table">
           <tr>
@@ -537,7 +575,7 @@ ${commodityRows}
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "16px" }}>
           <div style={{ background: "white", padding: "28px", borderRadius: "16px", width: "440px", maxWidth: "92vw", boxShadow: "0 16px 44px rgba(0,0,0,0.22)" }}>
             <h4 style={{ margin: "0 0 12px 0", color: "#0f172a" }}>Proceed to print?</h4>
-            <p style={{ margin: "0 0 16px 0", color: "#475569", fontSize: "0.95rem", lineHeight: 1.5 }}>Take note of the <strong><em>MONITORING DATE</em></strong> (underlined date). Once you print, you can only print multiple copies but cannot edit again the contents of the letter.</p>
+            <p style={{ margin: "0 0 16px 0", color: "#475569", fontSize: "0.95rem", lineHeight: 1.5, textAlign: "justify" }}>Please read the contents carefully. Take note of the <strong><em>MONITORING DATE</em></strong> (highlighted date) and ensure it is the right date of the monitoring. Once you print, you can only print multiple copies but cannot edit again the contents of the letter.</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
               <button onClick={handlePrintCancel} style={{ ...buttonStyle, background: "#e2e8f0", color: "#0f172a" }}>Cancel</button>
               <button onClick={handlePrintConfirm} style={{ ...buttonStyle, background: "#0f172a", color: "white" }}>Proceed</button>

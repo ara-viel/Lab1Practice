@@ -95,7 +95,6 @@ const tdStyle = modalTdStyle;
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { TrendingUp, TrendingDown, Search, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { generatePDF, generateWord } from "../services/reportGenerator";
-import { computePrevailingPrice } from "../services/prevailingCalculator";
 import "../assets/ComparativeAnalysis.css";
 
 // Helper to get month names
@@ -104,9 +103,6 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-<<<<<<< Updated upstream
-export default function ComparativeAnalysis({ prices, prevailingReport = [], initialFilters = {} }) {
-=======
 // Normalizers: accept full month names, common abbreviations (e.g. "Jan"), numeric strings, and numbers
 const normalizeMonthValue = (val) => {
   // Accept numbers, numeric strings, full month names, common abbreviations
@@ -157,7 +153,6 @@ const normalizeYearValue = (val) => {
 export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   // For case-sensitive table behavior keep original casing but trim whitespace
   const canonical = (s) => (s === undefined || s === null) ? "" : String(s).trim();
->>>>>>> Stashed changes
   const [selectedCommodity, setSelectedCommodity] = useState("all");
   const [selectedStore, setSelectedStore] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -176,25 +171,6 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   const [selectedYearFilter, setSelectedYearFilter] = useState("");
   const [reportNarrative, setReportNarrative] = useState("");
   const [isNarrativeEdited, setIsNarrativeEdited] = useState(false);
-  // Stores modal for aggregated buckets
-  const [showStoresModal, setShowStoresModal] = useState(false);
-  const [storesModalItems, setStoresModalItems] = useState([]);
-
-  const openStoresModal = (storesArr) => {
-    setStoresModalItems(Array.isArray(storesArr) ? storesArr : [storesArr]);
-    setShowStoresModal(true);
-  };
-
-  // Apply initial filters when provided
-  useEffect(() => {
-    if (initialFilters.commodity) {
-      setSelectedCommodity(initialFilters.commodity);
-      setSearchTerm(initialFilters.commodity);
-    }
-    if (initialFilters.store) {
-      setSelectedStore(initialFilters.store);
-    }
-  }, [initialFilters]);
 
 
   // Handle null or undefined prices and support several shapes
@@ -492,8 +468,8 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
         }
       });
 
-      // Produce one aggregated row per commodity+brand+size (collapse stores/months/years)
-      const aggregatedBuckets = {};
+      // Produce one result row per imported record (preserves all raw records)
+      const recordBuckets = {};
       const itemBrandFromRaw = (it) => {
         try {
           if (!it) return "";
@@ -506,113 +482,69 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
       activePrices.forEach(item => {
         if (!item || !item.commodity) return;
         const itemBrand = itemBrandFromRaw(item) || "";
-        const sizeKey = item.size || "";
-        const key = `${item.commodity}__${itemBrand}__${sizeKey}`;
-        if (!aggregatedBuckets[key]) aggregatedBuckets[key] = { commodity: item.commodity, brand: itemBrand, size: sizeKey, records: [], stores: new Set() };
         const mKey = normalizeMonthValue(item.month);
         const yKey = normalizeYearValue((item.year ?? item.years) ?? (item.timestamp ? new Date(item.timestamp).getFullYear() : undefined));
-        aggregatedBuckets[key].records.push({ raw: item, price: Number(item.price) || 0, srp: Number(item.srp) || 0, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0, monthKey: mKey, yearKey: yKey, store: item.store || "Unknown" });
-        aggregatedBuckets[key].stores.add(item.store || "Unknown");
+        const bucketKey = `${item.commodity}__${itemBrand}__${item.size || ""}__${item.store || "Unknown"}__${mKey}__${yKey}`;
+        if (!recordBuckets[bucketKey]) recordBuckets[bucketKey] = [];
+        recordBuckets[bucketKey].push({ raw: item, price: Number(item.price) || 0, srp: Number(item.srp) || 0, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0, monthKey: mKey, yearKey: yKey, brand: itemBrand });
       });
 
       const results = [];
-      Object.values(aggregatedBuckets).forEach(bucket => {
-        const recs = bucket.records.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-        const latest = recs.length ? recs[recs.length - 1] : null;
-        const previous = recs.length > 1 ? recs[recs.length - 2] : null;
-        const currentPrice = latest ? latest.price : 0;
-        const previousPrice = previous ? previous.price : 0;
-        const priceChange = currentPrice - previousPrice;
-        const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
-<<<<<<< Updated upstream
-        
-        // Use the actual SRP from the most recent record, not a lookup table
-        const srp = sortedPrices[0]?.srp || 0;
+      Object.values(recordBuckets).forEach(bucket => {
+        bucket.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        for (let i = 0; i < bucket.length; i++) {
+          const entry = bucket[i];
+          const prev = i > 0 ? bucket[i - 1] : null;
+          const currentPrice = entry.price;
+          const previousPrice = prev ? prev.price : 0;
+          const priceChange = currentPrice - previousPrice;
+          const percentChange = previousPrice !== 0 ? ((priceChange / previousPrice) * 100) : 0;
 
-        // Prevailing price rules moved to shared calculator: mode > highest, cap at SRP
-        const prevailingPrice = computePrevailingPrice(group.prices, srp);
+          // SRP lookup
+          const srpKey = `${entry.raw.commodity}__${entry.brand || ""}__${entry.raw.size || ""}`;
+          const srpEntry = srpLookup[srpKey] || srpLookup[entry.raw.commodity] || { value: 0 };
+          const srp = srpEntry?.value || 0;
 
-        // Determine status based on price changes
-        let statusType = "decreased"; // Default to decreased
-        
-        if (currentPrice > previousPrice) {
-          statusType = "higher-than-previous";
-        } else if (currentPrice > srp && srp > 0) {
-          statusType = "higher-than-srp";
-        } else if (currentPrice < previousPrice) {
-          statusType = "decreased";
-=======
+          // Prevailing price across stores
+          const prevailingLookupKey = `${entry.raw.commodity}__${entry.raw.size || ""}__${entry.monthKey}__${entry.yearKey}`;
+          let prevailingPrice = prevailingMap[prevailingLookupKey];
+          if (prevailingPrice === undefined) {
+            const pb = prevailingBuckets[prevailingLookupKey] || [];
+            if (pb.length > 0) {
+              let best = { price: -Infinity, ts: -1 };
+              pb.forEach(v => {
+                if (v.price > best.price || (v.price === best.price && (v.ts || 0) > (best.ts || 0))) {
+                  best = { price: v.price, ts: v.ts || 0 };
+                }
+              });
+              prevailingPrice = best.price === -Infinity ? 0 : best.price;
+            } else prevailingPrice = 0;
+          }
 
-        // Prevailing price across this bucket (mode -> tie-break latest ts -> fallback max)
-        const freq = {};
-        const lastTs = {};
-        recs.forEach(r => {
-          const p = r.price;
-          freq[p] = (freq[p] || 0) + 1;
-          lastTs[p] = Math.max(lastTs[p] || 0, r.ts || 0);
-        });
-        let prevailingPrice = 0;
-        const counts = Object.values(freq);
-        const maxCount = counts.length ? Math.max(...counts) : 0;
-        if (maxCount > 1) {
-          let bestPrice = 0;
-          let bestTs = -1;
-          Object.keys(freq).forEach(pKey => {
-            const count = freq[pKey];
-            if (count === maxCount) {
-              const ts = lastTs[pKey] || 0;
-              const pNum = Number(pKey);
-              if (ts > bestTs || (ts === bestTs && pNum > bestPrice)) {
-                bestTs = ts;
-                bestPrice = pNum;
-              }
-            }
+          let statusType = "decreased";
+          if (currentPrice > previousPrice) statusType = "higher-than-previous";
+          else if (currentPrice > srp && srp > 0) statusType = "higher-than-srp";
+          else if (currentPrice < previousPrice) statusType = "decreased";
+
+          const isCompliant = srp > 0 ? (currentPrice < srp * 1.10 && currentPrice > srp * 0.90) : true;
+
+          results.push({
+            commodity: entry.raw.commodity,
+            brand: entry.brand || "",
+            store: entry.raw.store || "Unknown",
+            size: entry.raw.size || "",
+            prevailingPrice: prevailingPrice,
+            srp: srp,
+            currentPrice: currentPrice,
+            previousPrice: previousPrice,
+            priceChange: priceChange,
+            percentChange: percentChange,
+            isCompliant: isCompliant,
+            statusType: statusType,
+            month: entry.monthKey === "ALL" ? "" : entry.monthKey,
+            year: entry.yearKey === "ALL" ? "" : entry.yearKey
           });
-          prevailingPrice = bestPrice;
-        } else {
-          // fallback to highest price (tie-break by latest ts)
-          let best = { price: -Infinity, ts: -1 };
-          recs.forEach(r => {
-            if (r.price > best.price || (r.price === best.price && (r.ts || 0) > (best.ts || 0))) {
-              best = { price: r.price, ts: r.ts || 0 };
-            }
-          });
-          prevailingPrice = best.price === -Infinity ? 0 : best.price;
->>>>>>> Stashed changes
         }
-
-        // SRP lookup using brand+size key then fallback to commodity
-        const srpKey = `${bucket.commodity}__${bucket.brand || ""}__${bucket.size || ""}`;
-        const srpEntry = srpLookup[srpKey] || srpLookup[bucket.commodity] || { value: 0 };
-        const srp = srpEntry?.value || 0;
-
-        let statusType = "decreased";
-        if (currentPrice > previousPrice) statusType = "higher-than-previous";
-        else if (currentPrice > srp && srp > 0) statusType = "higher-than-srp";
-        else if (currentPrice < previousPrice) statusType = "decreased";
-
-        const isCompliant = srp > 0 ? (currentPrice < srp * 1.10 && currentPrice > srp * 0.90) : true;
-
-        const storesArr = Array.from(bucket.stores || []);
-        const storeDisplay = storesArr.length === 1 ? storesArr[0] : `${storesArr.length} stores`;
-
-        results.push({
-          commodity: bucket.commodity,
-          brand: bucket.brand || "",
-          store: storeDisplay,
-          _stores: storesArr,
-          size: bucket.size || "",
-          prevailingPrice: prevailingPrice,
-          srp: srp,
-          currentPrice: currentPrice,
-          previousPrice: previousPrice,
-          priceChange: priceChange,
-          percentChange: percentChange,
-          isCompliant: isCompliant,
-          statusType: statusType,
-          month: latest && latest.monthKey !== "ALL" ? latest.monthKey : "",
-          year: latest && latest.yearKey !== "ALL" ? latest.yearKey : ""
-        });
       });
 
       // ...existing code...
@@ -624,13 +556,7 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
       }
       if (selectedStore !== "all") {
         const ss = canonical(selectedStore);
-        filtered = filtered.filter(item => {
-          if (canonical(item.store) === ss) return true;
-          if (Array.isArray(item._stores) && item._stores.length > 0) {
-            return item._stores.some(s => canonical(s) === ss);
-          }
-          return false;
-        });
+        filtered = filtered.filter(item => canonical(item.store) === ss);
       }
       
       // Apply search filter across BRAND, COMMODITY, SIZE, STORE, YEAR, MONTH (CASE-SENSITIVE)
@@ -858,9 +784,11 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
   // Build enhanced narrative summary
   const top5HighestList = getTop5Highest();
   const top5LowestList = getTop5Lowest();
+  const storesHighestList = getStoresWithHighestSRP();
+  
   const topIncreaseAmount = topIncrease?.priceChange || 0;
   const topDecreaseAmount = topDecrease?.priceChange || 0;
-
+  
   const summaryNarrative = useMemo(() => {
     const header = (selectedReportMonth && selectedReportYear)
       ? `Report for ${MONTHS[selectedReportMonth - 1]} ${selectedReportYear}`
@@ -870,14 +798,19 @@ export default function ComparativeAnalysis({ prices, prevailingReport = [] }) {
 
     const topMovers = topIncrease ? `The highest increase was ${topIncrease.commodity} at ${topIncrease.store} (₱${topIncreaseAmount.toFixed(2)}).` : "No data available";
     const topDecr = (topDecrease && topDecreaseAmount !== 0) ? `The largest decrease was ${topDecrease.commodity} at ${topDecrease.store} (₱${topDecreaseAmount.toFixed(2)}).` : "";
+    const topStore = storesHighestList[0]?.store || "N/A";
+    const topStoreAvg = storesHighestList[0]?.avgSRP ? storesHighestList[0].avgSRP.toFixed(2) : "0.00";
+
     return `
 ${header}
 Price Movement Summary: Across ${totalRecords} monitored products, the average price change is ${avgChangeSign}₱${avgChangeValue}.
 Status breakdown: ${higherPreviousCount} higher than previous price, ${higherSRPCount} higher than SRP, ${decreasedCount} decreased.
 
 Top Movers: ${topMovers} ${topDecr}
+
+SRP Landscape: The store with the highest average SRP is ${topStore} at ₱${topStoreAvg}.
 `;
-  }, [selectedReportMonth, selectedReportYear, MONTHS, totalRecords, avgChangeSign, avgChangeValue, higherPreviousCount, higherSRPCount, decreasedCount, topIncrease, topDecrease, topIncreaseAmount, topDecreaseAmount]);
+  }, [selectedReportMonth, selectedReportYear, MONTHS, totalRecords, avgChangeSign, avgChangeValue, higherPreviousCount, higherSRPCount, decreasedCount, topIncrease, topDecrease, topIncreaseAmount, topDecreaseAmount, storesHighestList]);
 
   useEffect(() => {
     if (!isNarrativeEdited) {
@@ -955,6 +888,10 @@ Top Movers: ${topMovers} ${topDecr}
         </div>
         <div className="ca-header-row">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div>
+              <h3 className="ca-title">Comparative Price Analysis</h3>
+            </div>
+            
             <div className="ca-filters-selects" style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
               <select
                 className="ca-select"
@@ -1115,15 +1052,7 @@ Top Movers: ${topMovers} ${topDecr}
                         <div style={{ color: "#475569" }}>{item.size || "--"}</div>
                       </td>
                       <td className="ca-td">
-                        <div style={{ color: "#475569" }}>
-                          <button
-                            onClick={() => openStoresModal(item._stores || [item.store])}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#475569', textDecoration: 'underline' }}
-                            aria-label={`Show stores for ${item.commodity} ${item.brand}`}
-                          >
-                            {item.store}
-                          </button>
-                        </div>
+                        <div style={{ color: "#475569" }}>{item.store}</div>
                       </td>
                       <td className="ca-td">
                         <div style={{ color: "#475569", fontWeight: 700 }}>{(item.year && String(item.year).trim() !== "") ? item.year : "--"}</div>
@@ -1235,33 +1164,7 @@ Top Movers: ${topMovers} ${topDecr}
         )}
       </div>
 
-        {/* Stores Modal */}
-        {showStoresModal && (
-          <div style={modalOverlayStyle} onClick={() => setShowStoresModal(false)}>
-            <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div>
-                  <h4 style={{ margin: 0, color: "#0f172a" }}>Stores</h4>
-                  <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.9rem" }}>Stores included in this bucket</p>
-                </div>
-                <button onClick={() => setShowStoresModal(false)} style={modalCloseButtonStyle}>✕</button>
-              </div>
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                  {storesModalItems.length === 0 ? (
-                    <li style={{ padding: '8px 0', color: '#94a3b8' }}>No stores</li>
-                  ) : (
-                    storesModalItems.map((s, i) => (
-                      <li key={i} style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9', color: '#0f172a' }}>{s}</li>
-                    ))
-                  )}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Report Modal */}
+      {/* Report Modal */}
       {showReportModal && (
         <div style={modalOverlayStyle} onClick={() => setShowReportModal(false)}>
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>

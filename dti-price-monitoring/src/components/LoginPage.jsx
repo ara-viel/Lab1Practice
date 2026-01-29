@@ -3,7 +3,7 @@ import Navbar from './Navbar';
 import '../assets/LoginPage.css';
 import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 
-function LoginPage({ onAuthenticated }) {
+function LoginPage({ onAuthenticated, onHomeClick }) {
   const [isSignup, setIsSignup] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -12,6 +12,7 @@ function LoginPage({ onAuthenticated }) {
     confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,22 +37,53 @@ function LoginPage({ onAuthenticated }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const userData = {
-      email: formData.email,
-      fullName: isSignup ? formData.fullName : formData.email.split('@')[0],
-      loginTime: new Date().toISOString()
-    };
-    localStorage.setItem('user', JSON.stringify(userData));
-    if (onAuthenticated) onAuthenticated();
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      const endpoint = isSignup ? '/api/auth/signup' : '/api/auth/login';
+      const payload = isSignup 
+        ? { fullName: formData.fullName, email: formData.email, password: formData.password }
+        : { email: formData.email, password: formData.password };
+
+      const response = await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors({ general: data.error || 'An error occurred' });
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user data in localStorage
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Show success message
+      if (window.toast && window.toast.success) {
+        window.toast.success(isSignup ? 'Account created successfully!' : 'Login successful!');
+      }
+      
+      // Call authentication handler
+      if (onAuthenticated) onAuthenticated();
+    } catch (error) {
+      console.error('Authentication error:', error);
+      setErrors({ general: 'Network error. Please try again.' });
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="login-page">
-      <Navbar isLandingPage={true} />
+      <Navbar isLandingPage={true} onHomeClick={onHomeClick} />
 
       <main className="auth-section">
         <div className="auth-container">
@@ -62,6 +94,20 @@ function LoginPage({ onAuthenticated }) {
             </div>
 
             <form onSubmit={handleSubmit} className="auth-form">
+              {errors.general && (
+                <div className="error-message" style={{ 
+                  padding: '12px', 
+                  background: '#fee', 
+                  border: '1px solid #fcc', 
+                  borderRadius: '8px', 
+                  color: '#c33', 
+                  marginBottom: '16px',
+                  fontSize: '0.9rem'
+                }}>
+                  {errors.general}
+                </div>
+              )}
+
               {isSignup && (
                 <div className="form-group">
                   <label htmlFor="fullName">Full Name</label>
@@ -134,9 +180,9 @@ function LoginPage({ onAuthenticated }) {
                 </div>
               )}
 
-              <button type="submit" className="submit-btn">
-                {isSignup ? 'Create Account' : 'Login'}
-                <ArrowRight size={18} />
+              <button type="submit" className="submit-btn" disabled={isLoading}>
+                {isLoading ? (isSignup ? 'Creating Account...' : 'Logging in...') : (isSignup ? 'Create Account' : 'Login')}
+                {!isLoading && <ArrowRight size={18} />}
               </button>
             </form>
 
@@ -145,8 +191,13 @@ function LoginPage({ onAuthenticated }) {
                 {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button 
                   type="button"
-                  onClick={() => setIsSignup(!isSignup)}
+                  onClick={() => {
+                    setIsSignup(!isSignup);
+                    setErrors({});
+                    setFormData({ fullName: '', email: '', password: '', confirmPassword: '' });
+                  }}
                   className="toggle-btn"
+                  disabled={isLoading}
                 >
                   {isSignup ? 'Login' : 'Sign Up'}
                 </button>

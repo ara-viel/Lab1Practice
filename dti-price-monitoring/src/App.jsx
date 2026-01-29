@@ -166,6 +166,11 @@ function App() {
         window.toast.error(`Import failed: ${error.message}`);
       }
     }
+<<<<<<< Updated upstream
+=======
+    loadData(); 
+    if (window.toast && window.toast.success) window.toast.success(`Imported ${importedData.length} records`);
+>>>>>>> Stashed changes
   };
 
   const handleDeleteData = async (id) => {
@@ -262,7 +267,7 @@ function App() {
   // --- MODERN STYLES ---
   const sidebarStyle = {
     width: "260px",
-    background: "#0f172a", // Deep Navy
+    background: "#0f172a", 
     color: "#f8fafc",
     minHeight: "100vh",
     position: "fixed",
@@ -308,7 +313,7 @@ function App() {
   const contentStyle = {
     marginLeft: "260px",
     flex: 1,
-    background: "#f8fafc", // Light gray-blue background
+    background: "#f8fafc", 
     minHeight: "100vh",
     padding: "40px"
   };
@@ -332,7 +337,7 @@ function App() {
   // Pre-auth routes: Landing -> Login -> App
   if (!isLoggedIn) {
     if (showLoginPage) {
-      return <LoginPage onAuthenticated={handleLogin} />;
+      return <LoginPage onAuthenticated={handleLogin} onHomeClick={() => setShowLoginPage(false)} />;
     }
     return <LandingPage onLoginClick={() => setShowLoginPage(true)} />;
   }
@@ -356,7 +361,7 @@ function App() {
             <span className="icon"><Activity size={18} /></span>
             <span className="nav-label">Monitoring</span>
           </button>
-          <button className={`nav-item ${activeTab === 'comparative price analysis' ? 'active' : ''}`} onClick={() => setActiveTab('comparative price analysis')}>
+          <button className={`nav-item ${activeTab === 'comparativepriceanalysis' ? 'active' : ''}`} onClick={() => setActiveTab('comparativepriceanalysis')}>
             <span className="icon"><FileSearch size={18} /></span>
             <span className="nav-label">Comparative Price Analysis</span>
           </button>
@@ -435,7 +440,7 @@ function App() {
         <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
           {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
-          {activeTab === "comparative price analysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "comparativepriceanalysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && dataMgmtTab === "basic" && (
             <BasicNecessities 

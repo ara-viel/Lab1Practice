@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Menu as MenuIcon, X, LogOut } from 'lucide-react';
 import '../assets/Navbar.css';
 
-function Navbar({ isLandingPage = false, user = null, onLogout = null, onLoginClick = null }) {
+function Navbar({ isLandingPage = false, user = null, onLogout = null, onLoginClick = null, onHomeClick = null }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
@@ -10,28 +10,28 @@ function Navbar({ isLandingPage = false, user = null, onLogout = null, onLoginCl
     if (onLogout) onLogout();
   };
 
+  const handleHomeClick = (e) => {
+    e.preventDefault();
+    if (onHomeClick) {
+      onHomeClick();
+    }
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
         {/* Logo/Brand */}
-        <div className="navbar-brand">
-          <span className="brand-icon">📊</span>
+        <div className="navbar-brand" onClick={handleHomeClick} style={{ cursor: 'pointer' }}>
+          <img src="/logo-DTI.png" alt="DTI Logo" className="brand-icon" style={{ height: '32px', width: 'auto' }} />
           <span className="brand-text">DTI Monitor</span>
         </div>
 
         {/* Desktop Menu */}
         <div className="navbar-menu desktop">
-          {isLandingPage ? (
-            <>
-              <a href="#home" className="nav-link">Home</a>
-              <a href="#services" className="nav-link">Services</a>
-            </>
-          ) : (
-            <>
-              <a href="#dashboard" className="nav-link">Home</a>
-              <a href="#services" className="nav-link">Services</a>
-            </>
-          )}
+          <>
+            <a href="#home" className="nav-link" onClick={handleHomeClick}>Home</a>
+            <a href="#services" className="nav-link">Services</a>
+          </>
         </div>
 
         {/* User Section / Auth Buttons */}
@@ -66,17 +66,11 @@ function Navbar({ isLandingPage = false, user = null, onLogout = null, onLoginCl
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className="navbar-menu-mobile">
-          {isLandingPage ? (
-            <>
-              <a href="#home" className="mobile-nav-link">Home</a>
-              <a href="#services" className="mobile-nav-link">Services</a>
-            </>
-          ) : (
-            <>
-              <a href="#dashboard" className="mobile-nav-link">Home</a>
-              <a href="#services" className="mobile-nav-link">Services</a>
-            </>
-          )}
+          <>
+            <a href="#home" className="mobile-nav-link" onClick={handleHomeClick}>Home</a>
+            <a href="#services" className="mobile-nav-link">Services</a>
+          </>
+          
           
           {user ? (
             <>
