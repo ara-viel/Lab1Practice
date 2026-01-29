@@ -166,8 +166,10 @@ function App() {
         window.toast.error(`Import failed: ${error.message}`);
       }
     }
+
     loadData(); 
     if (window.toast && window.toast.success) window.toast.success(`Imported ${importedData.length} records`);
+
   };
 
   const handleDeleteData = async (id) => {
