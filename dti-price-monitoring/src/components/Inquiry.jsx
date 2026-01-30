@@ -771,7 +771,7 @@ ${commodityRows}
       <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h4 style={{ margin: 0, color: "#0f172a" }}>Flagged Entries</h4>
-          <span style={tagStyle}>{flaggedItems.length} item(s)</span>
+          <span style={tagStyle}>{Object.keys(flaggedByStore).length} {Object.keys(flaggedByStore).length === 1 ? 'store' : 'stores'}</span>
         </div>
         <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "360px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
