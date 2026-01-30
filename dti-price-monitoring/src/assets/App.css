@@ -1,7 +1,7 @@
 :root{--sidebar-width:260px;--content-padding:40px;--content-maxwidth:10000px}
 .app-root{display:flex;font-family:'Inter',sans-serif}
 /* Sidebar */
-.sidebar{width:var(--sidebar-width);background:#0f172a;color:#f8fafc;min-height:100vh;position:fixed;display:flex;flex-direction:column;box-shadow:4px 0 10px rgba(0,0,0,0.05);transition:width .18s ease;z-index:50}
+.sidebar{width:var(--sidebar-width);background:#263d81;color:#f8fafc;min-height:100vh;position:fixed;display:flex;flex-direction:column;box-shadow:4px 0 10px rgba(0,0,0,0.05);transition:width .18s ease;z-index:50}
 .sidebar .sidebar-header{display:flex;align-items:center;gap:10px;padding:32px 24px}
 .sidebar.collapsed{width:72px}
 .sidebar.collapsed .sidebar-header{padding:20px 8px;justify-content:center}
