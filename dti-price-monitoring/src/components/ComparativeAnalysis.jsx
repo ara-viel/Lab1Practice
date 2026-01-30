@@ -1136,44 +1136,54 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     return Array.from(map.values());
   }, [pricesArray, selectedCommodity, selectedBrand, selectedStore]);
 
-  // Report-specific data: filter combined results to only entries that match the selected report month/year
+  // Report-specific data: filter baseAggregatedData to only entries that match the selected report month/year
+  // Also respect commodity and brand filters (but not "all")
   const reportData = useMemo(() => {
-    const base = combinedData;
-    if (!selectedReportMonth && !selectedReportYear) return base;
+    let filtered = baseAggregatedData;
 
-    const matchesEntry = (p) => {
-      // derive year and month from imported fields or timestamp (no default to current year)
-      let y = p?.year ?? p?.years;
-      if ((y === undefined || y === null || String(y).trim() === "") && p?.timestamp) {
-        const d = new Date(p.timestamp);
-        if (!isNaN(d.getTime())) y = d.getFullYear();
-      }
-      let m = p?.month;
-      if (typeof m === 'string') {
-        const idx = MONTHS.findIndex(mon => mon.toLowerCase() === m.toLowerCase());
-        if (idx !== -1) m = idx + 1;
-      }
-      if (m !== undefined && m !== null) m = Number(m);
-      if (y !== undefined && y !== null) y = Number(y);
-
-      if (selectedReportYear && selectedReportMonth) {
-        return Number(y) === Number(selectedReportYear) && Number(m) === Number(selectedReportMonth);
-      }
-      if (selectedReportYear) return Number(y) === Number(selectedReportYear);
-      if (selectedReportMonth) return Number(m) === Number(selectedReportMonth);
-      return false;
-    };
-
-    return base.filter(item => {
-      // find any original price record for this commodity/store/size that matches the report selection (case-insensitive)
-      const entries = pricesArray.filter(p => p &&
-        canonical(p.commodity) === canonical(item.commodity) &&
-        canonical(p.store || 'Unknown') === canonical(item.store || 'Unknown') &&
-        canonical(p.size || '') === canonical(item.size || '')
+    // Apply commodity filter if specific commodity is selected (not "all")
+    if (selectedCommodity && selectedCommodity !== 'all') {
+      filtered = filtered.filter(item => 
+        canonical(item.commodity).toLowerCase().includes(canonical(selectedCommodity).toLowerCase())
       );
-      return entries.some(matchesEntry);
+    }
+
+    // Apply brand filter if specific brand is selected (not "all")
+    if (selectedBrand && selectedBrand !== 'all') {
+      filtered = filtered.filter(item => 
+        canonical(item.brand || '').toLowerCase() === canonical(selectedBrand).toLowerCase()
+      );
+    }
+
+    // Apply month/year filters
+    if ((!selectedReportMonth || selectedReportMonth === '') && (!selectedReportYear || selectedReportYear === '')) {
+      return filtered;
+    }
+
+    return filtered.filter(item => {
+      const itemMonth = typeof item.month === 'number' ? item.month : 
+                       typeof item.month === 'string' ? (MONTHS.findIndex(m => m.toLowerCase() === item.month.toLowerCase()) + 1) : null;
+      const itemYear = typeof item.year === 'number' ? item.year :
+                      typeof item.year === 'string' && item.year.trim() !== '' ? Number(item.year) : null;
+
+      // Both month and year selected: must match both
+      if (selectedReportYear && selectedReportYear !== '' && selectedReportMonth && selectedReportMonth !== '') {
+        return itemYear === Number(selectedReportYear) && itemMonth === Number(selectedReportMonth);
+      }
+      
+      // Only year selected (all months for that year)
+      if (selectedReportYear && selectedReportYear !== '' && (!selectedReportMonth || selectedReportMonth === '')) {
+        return itemYear === Number(selectedReportYear);
+      }
+      
+      // Only month selected (that month across all years)
+      if (selectedReportMonth && selectedReportMonth !== '' && (!selectedReportYear || selectedReportYear === '')) {
+        return itemMonth === Number(selectedReportMonth);
+      }
+      
+      return true;
     });
-  }, [pricesArray, selectedReportMonth, selectedReportYear, selectedCommodity, selectedStore, searchTerm, srpLookup, prevailingLookup]);
+  }, [baseAggregatedData, selectedReportMonth, selectedReportYear, selectedCommodity, selectedBrand]);
 
   // Check if any filters are active
   const isFiltered = selectedCommodity !== 'all' || selectedBrand !== 'all' || searchTerm || selectedStore !== 'all' || selectedStatusFilter;
