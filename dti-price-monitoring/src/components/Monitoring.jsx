@@ -499,11 +499,17 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
           price,
           srp,
           excess: price - srp,
-          date: formatMonthYear(p.month, p.years, p.timestamp)
+          date: formatMonthYear(p.month, p.years, p.timestamp),
+          month: p.month,
+          year: p.years
         });
       }
     });
-    return Object.values(storeExceeded).sort((a, b) => b.count - a.count);
+    const result = Object.values(storeExceeded);
+    result.forEach(store => {
+      store.items.sort((a, b) => b.excess - a.excess);
+    });
+    return result.sort((a, b) => b.count - a.count);
   }, [timeFilteredPrices, hideStores]);
 
   // 4. Stores that exceeded 10% previous price
@@ -528,7 +534,9 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
       grouped[key].prices.push({
         price: Number(p.price) || 0,
         order: getMonthYearOrder(p.month, p.years, p.timestamp),
-        monthYear: formatMonthYear(p.month, p.years, p.timestamp)
+        monthYear: formatMonthYear(p.month, p.years, p.timestamp),
+        month: p.month,
+        year: p.years
       });
     });
 
@@ -553,13 +561,19 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
             percentIncrease,
             prevDate: sorted[i - 1].monthYear,
             currDate: sorted[i].monthYear,
-            date: `${sorted[i - 1].monthYear} -> ${sorted[i].monthYear}`
+            date: `${sorted[i - 1].monthYear} -> ${sorted[i].monthYear}`,
+            month: sorted[i].month,
+            year: sorted[i].year
           });
         }
       }
     });
 
-    return Object.values(storeExceeded).sort((a, b) => b.count - a.count);
+    const result = Object.values(storeExceeded);
+    result.forEach(store => {
+      store.items.sort((a, b) => b.percentIncrease - a.percentIncrease);
+    });
+    return result.sort((a, b) => b.count - a.count);
   }, [timeFilteredPrices, hideStores]);
 
   const srpPreviewLimit = 3;
@@ -636,7 +650,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
           {/* 1. PRICE TREND OF PRODUCTS */}
           <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-          <h4 style={{ margin: 0, color: "#1e293b" }}>📈 Price Trends by Product (Prevailing Price)</h4>
+          <h4 style={{ margin: 0, color: "#29296E" }}>📈 Price Trends by Product (Prevailing Price)</h4>
           <button
             onClick={() => setIsTrendExpanded(prev => !prev)}
             style={{
@@ -646,7 +660,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
               padding: "8px 12px",
               cursor: "pointer",
               fontWeight: 600,
-              color: "#0f172a"
+              color: "#29296E"
             }}
           >
             {isTrendExpanded ? "Collapse Chart" : "Expand Chart"}
@@ -716,7 +730,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
         ) : (
           <>
             {priceTrendData.sizeLabels.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #e2e8f0", justifyContent: "center" }}>
                 {priceTrendData.sizeLabels.map((label, idx) => (
                   <div
                     key={label}
@@ -743,7 +757,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
                     }}
                   >
                     <div style={{ width: "16px", height: "3px", backgroundColor: getColorForIndex(idx), borderRadius: "2px" }}></div>
-                    <span style={{ fontSize: "13px", color: "#1e293b", fontWeight: "500", textDecoration: hiddenSeries.has(label) ? "line-through" : "none" }}>
+                    <span style={{ fontSize: "13px", color: "#29296E", fontWeight: "500", textDecoration: hiddenSeries.has(label) ? "line-through" : "none" }}>
                       {label}
                     </span>
                   </div>
@@ -773,7 +787,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
 
       {/* 2. PRICE RANGE (MIN/MAX) */}
       <div style={cardStyle}>
-        <h4 style={{ margin: "0 0 16px 0", color: "#1e293b" }}>💰 Price Range (Min - Max)</h4>
+        <h4 style={{ margin: "0 0 16px 0", color: "#29296E" }}>💰 Price Range (Min - Max)</h4>
         <div style={filterStyle}>
           <div style={{ position: "relative", minWidth: "500px" }}>
             <input
@@ -831,7 +845,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ padding: "18px 22px", border: "2px solid #6366f1", borderRadius: "14px", background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)", fontWeight: 700, color: "#1e293b", boxShadow: "0 6px 16px rgba(99, 102, 241, 0.12)" }}>
+              <div style={{ padding: "18px 22px", border: "2px solid #6366f1", borderRadius: "14px", background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)", fontWeight: 700, color: "#29296E", boxShadow: "0 6px 16px rgba(99, 102, 241, 0.12)" }}>
                 <span style={{ fontSize: "16px", color: "#475569", fontWeight: 600, marginRight: "10px" }}>Price Range:</span>
                 <span style={{ fontSize: "28px", color: "#4f46e5", fontWeight: 900, letterSpacing: "0.2px" }}>₱{priceRangeSummary.min.toFixed(2)} - ₱{priceRangeSummary.max.toFixed(2)}</span>
               </div>
@@ -884,7 +898,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
           {/* 3. STORES EXCEEDED SRP */}
           {!hideStores && (
             <div style={cardStyle}>
-          <h4 style={{ margin: "0 0 20px 0", color: "#1e293b", fontSize: "18px", fontWeight: "700" }}> Stores That Exceeded SRP</h4>
+          <h4 style={{ margin: "0 0 20px 0", color: "#29296E", fontSize: "18px", fontWeight: "700" }}> Stores That Exceeded SRP</h4>
           {storesExceededSRP.length === 0 ? (
             <div style={{ color: "#22c55e", textAlign: "center", padding: "32px", background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", borderRadius: "12px", fontSize: "15px", fontWeight: "500" }}>
               ✓ No stores exceeded SRP
@@ -915,7 +929,9 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
                             onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.9)"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.6)"}
                           >
-                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>{item.commodity}</div>
+                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                              {item.commodity} {item.brand && item.brand !== "No Brand" && <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "500" }}>({item.brand})</span>}
+                            </div>
                             <div style={{ fontSize: "12px", color: "#7f1d1d", marginBottom: "6px" }}>{item.date}</div>
                             <div style={{ fontSize: "13px", color: "#7f1d1d", display: "flex", gap: "16px" }}>
                               <span>Price: ₱{item.price.toFixed(2)}</span>
@@ -981,7 +997,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
       {/* 4. STORES EXCEEDED 10% PREVIOUS PRICE */}
       {!hideStores && (
         <div style={cardStyle}>
-          <h4 style={{ margin: "0 0 20px 0", color: "#1e293b", fontSize: "18px", fontWeight: "700" }}>📊 Stores with 10%+ Price Increase</h4>
+          <h4 style={{ margin: "0 0 20px 0", color: "#29296E", fontSize: "18px", fontWeight: "700" }}>📊 Stores with 10%+ Price Increase</h4>
           {storesExceeded10Percent.length === 0 ? (
             <div style={{ color: "#22c55e", textAlign: "center", padding: "32px", background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", borderRadius: "12px", fontSize: "15px", fontWeight: "500" }}>
               ✓ No stores with significant price increases (&gt;10%)
@@ -1089,7 +1105,7 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
           <div style={{ backgroundColor: "white", borderRadius: "16px", padding: "32px", maxWidth: "500px", width: "100%", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)", animation: "slideUp 0.3s ease-out" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", gap: "12px" }}>
-              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "#1e293b" }}>
+              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "#29296E" }}>
                 {selectedExceptionItem.type === "srp" ? "⚠️ SRP Exceeded Details" : "📊 Price Increase Details"}
               </h3>
               <button
@@ -1110,6 +1126,22 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
                 <div style={{ backgroundColor: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
                   <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", marginBottom: "4px", textTransform: "uppercase" }}>Product</div>
                   <div style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>{selectedExceptionItem.data.commodity}</div>
+                </div>
+
+                <div style={{ backgroundColor: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", marginBottom: "4px", textTransform: "uppercase" }}>Brand</div>
+                  <div style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>{selectedExceptionItem.data.brand || "N/A"}</div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div style={{ backgroundColor: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", marginBottom: "4px", textTransform: "uppercase" }}>Size</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>{selectedExceptionItem.data.size || "N/A"}</div>
+                  </div>
+                  <div style={{ backgroundColor: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "600", marginBottom: "4px", textTransform: "uppercase" }}>Variant</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>{selectedExceptionItem.data.variant || "N/A"}</div>
+                  </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -1194,19 +1226,21 @@ export default function Monitoring({ prices = [], onSeeAnalysis = () => {}, hide
                     store: hideStores ? undefined : store,
                     size: data?.size,
                     variant: data?.variant,
-                    brand: data?.brand
+                    brand: data?.brand,
+                    year: data?.year || selectedYear,
+                    month: data?.month || fromMonth || toMonth
                   });
                   setShowExceptionModal(false);
                 }}
-                style={{ background: "#2563eb", color: "white", border: "none", borderRadius: "8px", padding: "10px 14px", fontWeight: "700", cursor: "pointer" }}
+                style={{ background: "#1E4387", color: "white", border: "none", borderRadius: "8px", padding: "10px 14px", fontWeight: "700", cursor: "pointer" }}
               >
                 See Analysis
               </button>
               <button
                 onClick={() => setShowExceptionModal(false)}
-                style={{ backgroundColor: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "background-color 0.2s ease" }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#0f172a"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1e293b"}
+                style={{ backgroundColor: "#29296E", color: "white", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "background-color 0.2s ease" }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1E4387"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#29296E"}
               >
                 Close
               </button>

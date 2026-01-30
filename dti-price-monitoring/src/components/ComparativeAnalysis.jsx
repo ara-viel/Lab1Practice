@@ -1,3 +1,9 @@
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { TrendingUp, TrendingDown, Search, X, ChevronLeft, ChevronRight, Download, Loader } from "lucide-react";
+import { generatePDF, generateWord } from "../services/reportGenerator";
+import { computePrevailingPrice } from "../services/prevailingCalculator";
+import "../assets/ComparativeAnalysis.css";
+
 const exportButtonStyle = {
   background: "#2563eb",
   color: "#fff",
@@ -90,12 +96,70 @@ const modalTdStyle = {
   fontSize: "0.97rem"
 };
 
+// OPTIMIZATION: Separate memoized search input component to prevent re-renders of main component
+const SearchInput = React.memo(({ searchTerm, onSearchChange, showSuggestions, setShowSuggestions, uniqueCommodities, canonical, onSelectCommodity }) => {
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minWidth: 360, marginRight: 8 }}>
+      <Search size={18} color="#64748b" style={{ position: 'absolute', left: 10 }} />
+      <input
+        type="text"
+        className="ca-search-input"
+        placeholder="Enter commodity"
+        value={searchTerm}
+        onFocus={() => setShowSuggestions(true)}
+        onChange={onSearchChange}
+        onBlur={e => {
+          const v = e.target.value;
+          const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
+          if (match && match !== 'all') onSelectCommodity(match);
+          else onSelectCommodity('all');
+          setTimeout(() => setShowSuggestions(false), 120);
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            const v = e.currentTarget.value;
+            const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
+            if (match && match !== 'all') onSelectCommodity(match);
+            else onSelectCommodity('all');
+          }
+        }}
+        style={{ paddingLeft: 36, minWidth: 260 }}
+      />
+      {showSuggestions && (() => {
+        const q = String(searchTerm || "").trim().toLowerCase();
+        const suggestions = uniqueCommodities.filter(c => c && c !== 'all' && c.toLowerCase().includes(q));
+        const limited = suggestions;
+        if (limited.length === 0) return null;
+        return (
+          <div style={{ position: 'absolute', top: '42px', left: 0, right: 'auto', zIndex: 1200, width: '100%', maxWidth: 520 }}>
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(2,6,23,0.08)', maxHeight: 200, overflowY: 'auto' }}>
+              {limited.map((c, i) => (
+                <div
+                  key={c + '_' + i}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => { onSearchChange({ target: { value: c } }); onSelectCommodity(c); setShowSuggestions(false); }}
+                  style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: i < limited.length - 1 ? '1px solid #f1f5f9' : 'none' }}
+                >
+                  {c}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+      {searchTerm && (
+        <button
+          onClick={() => { onSearchChange({ target: { value: "" } }); onSelectCommodity('all'); }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", padding: "4px", marginLeft: 4 }}
+        >
+          <X size={18} />
+        </button>
+      )}
+    </div>
+  );
+});
+
 // General table cell style alias used in main table rows
-import React, { useState, useMemo, useRef, useEffect } from "react";
-import { TrendingUp, TrendingDown, Search, X, ChevronLeft, ChevronRight, Download } from "lucide-react";
-import { generatePDF, generateWord } from "../services/reportGenerator";
-import { computePrevailingPrice } from "../services/prevailingCalculator";
-import "../assets/ComparativeAnalysis.css";
 const tdStyle = modalTdStyle;
 
 // Helper to get month names
@@ -174,6 +238,7 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
   // Table filters for month/year (separate from report modal selections)
   const [selectedMonthFilter, setSelectedMonthFilter] = useState("");
   const [selectedYearFilter, setSelectedYearFilter] = useState("");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("");
   const [reportNarrative, setReportNarrative] = useState("");
   const [isNarrativeEdited, setIsNarrativeEdited] = useState(false);
   // Stores modal for aggregated buckets
@@ -194,8 +259,25 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     if (initialFilters.store) {
       setSelectedStore(initialFilters.store);
     }
+    if (initialFilters.brand) {
+      setSelectedBrand(initialFilters.brand);
+    }
+    if (initialFilters.month) {
+      const normalizedMonth = normalizeMonthValue(initialFilters.month);
+      if (typeof normalizedMonth === 'number') {
+        setSelectedMonthFilter(String(normalizedMonth));
+      }
+    }
+    if (initialFilters.year) {
+      setSelectedYearFilter(String(initialFilters.year));
+    }
   }, [initialFilters]);
 
+  // OPTIMIZATION: Memoize search input handler to prevent unnecessary re-renders
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  }, []);
 
   // Handle null or undefined prices and support several shapes
   // If `monitoringData` is provided (processed dataset from Monitoring), prefer it as the source
@@ -247,7 +329,7 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
       if (typeof normalized === 'number') months.add(normalized);
     });
     return Array.from(months).sort((a, b) => a - b);
-  }, [pricesArray, selectedStore]);
+  }, [pricesArray]);
 
   const availableYears = useMemo(() => {
     const years = new Set();
@@ -259,7 +341,7 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
       }
     });
     return Array.from(years).sort((a, b) => b - a);
-  }, [pricesArray, selectedStore, selectedCommodity]);
+  }, [pricesArray]);
 
   // Get unique commodities and stores for filters (dedupe case-insensitively)
   const uniqueCommodities = useMemo(() => {
@@ -357,13 +439,248 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
   });
 
 
-  // Get combined data, filtered by selected month/year if set
-  const getCombinedData = () => {
+  // OPTIMIZATION: Compute base aggregated data once on mount (without filters)
+  // This data is used for report generation and won't be recomputed on filter changes
+  const baseAggregatedData = useMemo(() => {
     try {
-      // Group by commodity and store
-      // Respect table month/year filters when provided
+      // Group by commodity and store - NO FILTERS APPLIED HERE
+      const activePrices = pricesArray;
+
+      const grouped = {};
+      activePrices.forEach(item => {
+        if (!item || !item.commodity) return;
+        let itemBrand = "";
+        try {
+          if (item.brand) {
+            if (Array.isArray(item.brand)) itemBrand = String(item.brand[0] || "");
+            else itemBrand = String(item.brand);
+          } else if (item.brands) {
+            if (Array.isArray(item.brands)) itemBrand = String(item.brands[0] || "");
+            else itemBrand = String(item.brands);
+          }
+        } catch (e) { itemBrand = ""; }
+
+        const itemMonthKey = normalizeMonthValue(item.month);
+        const rawYear = (item.year ?? item.years) ?? (item.timestamp ? new Date(item.timestamp).getFullYear() : undefined);
+        const itemYearKey = normalizeYearValue(rawYear);
+
+        const monthKey = itemMonthKey;
+        const yearKey = itemYearKey;
+
+        const key = `${item.commodity}_${itemBrand || "UnknownBrand"}_${item.size || ""}_${item.store || "Unknown"}_${monthKey}_${yearKey}`;
+        if (!grouped[key]) {
+          grouped[key] = {
+            commodity: item.commodity,
+            brand: itemBrand || "",
+            store: item.store || "Unknown",
+            size: item.size || "",
+            prices: [],
+            brands: new Set()
+          };
+        }
+        const parsedPrice = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        const parsedSrp = (item.srp === undefined || item.srp === null || String(item.srp).trim() === "") ? null : Number(item.srp);
+        grouped[key].prices.push({
+          price: parsedPrice,
+          srp: parsedSrp,
+          month: item.month,
+          year: item.year ?? item.years ?? "",
+          monthKey: monthKey,
+          yearKey: yearKey,
+          ts: item.timestamp ? new Date(item.timestamp).getTime() : 0,
+          originalTimestamp: item.timestamp
+        });
+        try {
+          if (itemBrand) grouped[key].brands.add(itemBrand);
+          else if (item.brand) {
+            if (Array.isArray(item.brand)) item.brand.forEach(b => b && grouped[key].brands.add(String(b)));
+            else grouped[key].brands.add(String(item.brand));
+          } else if (item.brands) {
+            if (Array.isArray(item.brands)) item.brands.forEach(b => b && grouped[key].brands.add(String(b)));
+            else grouped[key].brands.add(String(item.brands));
+          }
+        } catch (e) { }
+      });
+
+      // Build prevailing map across stores per commodity+brand+size+month+year using mode
+      const prevailingBuckets = {};
+      activePrices.forEach(item => {
+        if (!item || !item.commodity) return;
+        let itemBrand = "";
+        try {
+          if (item.brand) {
+            if (Array.isArray(item.brand)) itemBrand = String(item.brand[0] || "");
+            else itemBrand = String(item.brand);
+          } else if (item.brands) {
+            if (Array.isArray(item.brands)) itemBrand = String(item.brands[0] || "");
+            else itemBrand = String(item.brands);
+          }
+        } catch (e) { itemBrand = ""; }
+
+        const m = normalizeMonthValue(item.month);
+        const yRaw = (item.year ?? item.years) ?? (item.timestamp ? new Date(item.timestamp).getFullYear() : undefined);
+        const y = normalizeYearValue(yRaw);
+
+        const monthKey = m;
+        const yearKey = y;
+
+        const key = `${item.commodity}__${item.size || ""}__${monthKey}__${yearKey}`;
+        if (!prevailingBuckets[key]) prevailingBuckets[key] = [];
+        const pVal = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        if (pVal !== null) prevailingBuckets[key].push({ price: pVal, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0 });
+      });
+
+      const prevailingMap = {};
+      Object.entries(prevailingBuckets).forEach(([k, arr]) => {
+        const freq = {};
+        const lastTs = {};
+        arr.forEach(v => {
+          const p = v.price;
+          freq[p] = (freq[p] || 0) + 1;
+          lastTs[p] = Math.max(lastTs[p] || 0, v.ts || 0);
+        });
+
+        const counts = Object.values(freq);
+        const maxCount = counts.length ? Math.max(...counts) : 0;
+
+        if (maxCount > 1) {
+          let bestPrice = -Infinity;
+          let bestTs = -1;
+          Object.keys(freq).forEach(pKey => {
+            const count = freq[pKey];
+            if (count === maxCount) {
+              const ts = lastTs[pKey] || 0;
+              const pNum = Number(pKey);
+              if (pNum > bestPrice || (pNum === bestPrice && ts > bestTs)) {
+                bestPrice = pNum;
+                bestTs = ts;
+              }
+            }
+          });
+          prevailingMap[k] = bestPrice === -Infinity ? 0 : bestPrice;
+        } else {
+          const parts = k.split('__');
+          const commodityKey = parts[0];
+          const sizeKey = parts[1];
+          const monthKey = parts[2];
+          const yearKey = parts[3];
+
+          let bestPrice = -Infinity;
+          let bestTs = -1;
+          Object.entries(prevailingBuckets).forEach(([k2, arr2]) => {
+            const p2 = k2.split('__');
+            if (p2[0] === commodityKey && p2[1] === sizeKey && p2[2] === monthKey && p2[3] === yearKey) {
+              arr2.forEach(v => {
+                if (v.price > bestPrice || (v.price === bestPrice && (v.ts || 0) > bestTs)) {
+                  bestPrice = v.price;
+                  bestTs = v.ts || 0;
+                }
+              });
+            }
+          });
+          prevailingMap[k] = bestPrice === -Infinity ? 0 : bestPrice;
+        }
+      });
+
+      // Produce one aggregated row per commodity+brand+size
+      const aggregatedBuckets = {};
+      const itemBrandFromRaw = (it) => {
+        try {
+          if (!it) return "";
+          if (it.brand) return Array.isArray(it.brand) ? String(it.brand[0] || "") : String(it.brand);
+          if (it.brands) return Array.isArray(it.brands) ? String(it.brands[0] || "") : String(it.brands);
+        } catch (e) { }
+        return "";
+      };
+
+      activePrices.forEach(item => {
+        if (!item || !item.commodity) return;
+        const itemBrand = itemBrandFromRaw(item) || "";
+        const sizeKey = item.size || "";
+        const storeKey = item.store || "Unknown";
+        const key = `${item.commodity}__${itemBrand}__${sizeKey}__${storeKey}`;
+        if (!aggregatedBuckets[key]) aggregatedBuckets[key] = { commodity: item.commodity, brand: itemBrand, size: sizeKey, records: [], stores: new Set() };
+        const mKey = normalizeMonthValue(item.month);
+        const yKey = normalizeYearValue((item.year ?? item.years) ?? (item.timestamp ? new Date(item.timestamp).getFullYear() : undefined));
+        const recPrice = (item.price === undefined || item.price === null || String(item.price).trim() === "") ? null : Number(item.price);
+        const recSrp = (item.srp === undefined || item.srp === null || String(item.srp).trim() === "") ? null : Number(item.srp);
+        aggregatedBuckets[key].records.push({ raw: item, price: recPrice, srp: recSrp, ts: item.timestamp ? new Date(item.timestamp).getTime() : 0, monthKey: mKey, yearKey: yKey, store: storeKey });
+        aggregatedBuckets[key].stores.add(storeKey);
+      });
+
+      const results = [];
+      Object.values(aggregatedBuckets).forEach(bucket => {
+        const recs = bucket.records.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        const currentRec = recs.length ? recs[0] : null;
+        const previousRec = recs.length > 1 ? recs[1] : null;
+        const currentPrice = currentRec ? currentRec.price : null;
+        const previousPrice = previousRec ? previousRec.price : null;
+        const priceChange = (currentPrice !== null && previousPrice !== null) ? (currentPrice - previousPrice) : null;
+        const percentChange = (previousPrice !== null && previousPrice !== 0 && priceChange !== null) ? ((priceChange / previousPrice) * 100) : null;
+
+        const srpKey = `${bucket.commodity}__${bucket.brand || ""}__${bucket.size || ""}`;
+        const srpEntry = srpLookup[srpKey] || srpLookup[bucket.commodity] || { value: 0 };
+        const srp = srpEntry?.value || 0;
+        
+        const prevailingPrice = computePrevailingPrice(recs, srp);
+
+        let statusType = "decreased";
+        if (currentPrice !== null && previousPrice !== null) {
+          if (currentPrice > previousPrice) {
+            statusType = "higher-than-previous";
+          } else if (currentPrice === previousPrice) {
+            statusType = "stable";
+          } else {
+            statusType = "decreased";
+          }
+        } else if (currentPrice !== null && srp > 0 && currentPrice > srp) {
+          statusType = "higher-than-srp";
+        } else if (currentPrice !== null && previousPrice === null) {
+          statusType = "stable";
+        }
+
+        const isCompliant = srp > 0 ? (currentPrice < srp * 1.10 && currentPrice > srp * 0.90) : true;
+
+        const storesArr = Array.from(bucket.stores || []);
+        const storeDisplay = storesArr.length === 0 ? "Unknown" : storesArr.join(', ');
+
+        results.push({
+          commodity: bucket.commodity,
+          brand: bucket.brand || "",
+          store: storeDisplay,
+          _stores: storesArr,
+          size: bucket.size || "",
+          prevailingPrice: prevailingPrice,
+          srp: srp,
+          currentPrice: currentPrice,
+          previousPrice: previousPrice,
+          priceChange: priceChange,
+          percentChange: percentChange,
+          isCompliant: isCompliant,
+          statusType: statusType,
+          month: currentRec && currentRec.monthKey !== "ALL" ? currentRec.monthKey : "",
+          year: currentRec && currentRec.yearKey !== "ALL" ? currentRec.yearKey : ""
+        });
+      });
+
+      return results;
+    } catch (error) {
+      console.error("Error in baseAggregatedData:", error);
+      return [];
+    }
+  }, [pricesArray, srpLookup, prevailingLookup]);
+
+  // Apply filters to base data for table display
+  const combinedData = useMemo(() => {
+    // Only process data when filters are applied
+    if (selectedCommodity === 'all' && selectedBrand === 'all' && !searchTerm) {
+      return [];
+    }
+
+    try {
       const monthFilterVal = selectedMonthFilter ? Number(selectedMonthFilter) : null;
       const yearFilterVal = selectedYearFilter ? Number(selectedYearFilter) : null;
+      
       // build a filtered list once so all subsequent passes respect the month/year table filters
       const activePrices = pricesArray.filter(item => {
         if (!item || !item.commodity) return false;
@@ -581,28 +898,35 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
         const previousPrice = previousRec ? previousRec.price : null;
         const priceChange = (currentPrice !== null && previousPrice !== null) ? (currentPrice - previousPrice) : null;
         const percentChange = (previousPrice !== null && previousPrice !== 0 && priceChange !== null) ? ((priceChange / previousPrice) * 100) : null;
+
         
         
         // SRP lookup using brand+size key then fallback to commodity
         const srpKey = `${bucket.commodity}__${bucket.brand || ""}__${bucket.size || ""}`;
         const srpEntry = srpLookup[srpKey] || srpLookup[bucket.commodity] || { value: 0 };
         const srp = srpEntry?.value || 0;
-        // Prevailing price rules moved to shared calculator: mode > highest, cap at SRP
+        
+        // Prevailing price rules: mode > highest, cap at SRP
         const prevailingPrice = computePrevailingPrice(recs, srp);
 
-        // Determine status based on price changes
-        let statusType = "decreased";
-        if (currentPrice !== null && previousPrice !== null) {
+        let statusType = "stable";
+        if (currentPrice !== null && srp > 0) {
+          // FIRST PRIORITY: Check if price is higher than SRP
+          if (currentPrice > srp) {
+            statusType = "higher-than-srp";
+          } else {
+            // Price is within or below SRP, mark as stable
+            statusType = "stable";
+          }
+        } else if (currentPrice !== null && previousPrice !== null) {
+          // If no SRP data, check against previous price
           if (currentPrice > previousPrice) {
             statusType = "higher-than-previous";
-          } else if (currentPrice === previousPrice) {
-            statusType = "stable";
           } else {
-            statusType = "decreased";
+            statusType = "stable";
           }
-        } else if (currentPrice !== null && srp > 0 && currentPrice > srp) {
-          statusType = "higher-than-srp";
-        } else if (currentPrice !== null && previousPrice === null) {
+        } else if (currentPrice !== null) {
+          // Default to stable if only current price is available
           statusType = "stable";
         }
 
@@ -651,6 +975,11 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
       if (selectedBrand !== "all") {
         const sb = canonical(selectedBrand);
         filtered = filtered.filter(item => canonical(item.brand) === sb);
+      }
+      
+      // Apply status filter
+      if (selectedStatusFilter) {
+        filtered = filtered.filter(item => item.statusType === selectedStatusFilter);
       }
       
       // Apply search filter across BRAND, COMMODITY, SIZE, STORE, YEAR, MONTH (CASE-SENSITIVE)
@@ -732,10 +1061,53 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
       console.error("Error in getCombinedData:", error);
       return [];
     }
-  };
+  }, [pricesArray, srpLookup, prevailingLookup, selectedMonthFilter, selectedYearFilter, selectedCommodity, selectedBrand, searchTerm]);
 
-  // Get filtered data first so it can be used in other hooks
-  const filteredData = useMemo(() => getCombinedData(), [pricesArray, selectedCommodity, selectedStore, searchTerm, srpLookup, prevailingLookup, selectedReportMonth, selectedReportYear, selectedMonthFilter, selectedYearFilter]);
+  // OPTIMIZATION: Apply filters to pre-computed data (like Data Management)
+  const filteredData = useMemo(() => {
+    return combinedData.filter(item => {
+      // Commodity filter
+      if (selectedCommodity && selectedCommodity !== 'all') {
+        if (!canonical(item.commodity).toLowerCase().includes(canonical(selectedCommodity).toLowerCase())) {
+          return false;
+        }
+      }
+      
+      // Store filter
+      if (selectedStore && selectedStore !== 'all') {
+        if (canonical(item.store || '').toLowerCase() !== canonical(selectedStore).toLowerCase()) {
+          return false;
+        }
+      }
+      
+      // Brand filter
+      if (selectedBrand && selectedBrand !== 'all') {
+        if (canonical(item.brand || '').toLowerCase() !== canonical(selectedBrand).toLowerCase()) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (selectedStatusFilter && selectedStatusFilter !== 'all') {
+        if (item.statusType !== selectedStatusFilter) {
+          return false;
+        }
+      }
+      
+      // Search term filter
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = (
+          canonical(item.commodity).toLowerCase().includes(search) ||
+          canonical(item.store || '').toLowerCase().includes(search) ||
+          canonical(item.brand || '').toLowerCase().includes(search)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      return true;
+    });
+  }, [combinedData, selectedCommodity, selectedStore, selectedBrand, selectedStatusFilter, searchTerm]);
 
   // Unique stores for store filter: derive from raw prices but respect selected commodity/brand.
   const uniqueStores = useMemo(() => {
@@ -764,61 +1136,76 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     return Array.from(map.values());
   }, [pricesArray, selectedCommodity, selectedBrand, selectedStore]);
 
-  // Report-specific data: filter combined results to only entries that match the selected report month/year
+  // Report-specific data: filter baseAggregatedData to only entries that match the selected report month/year
+  // Also respect commodity and brand filters (but not "all")
   const reportData = useMemo(() => {
-    const base = getCombinedData();
-    if (!selectedReportMonth && !selectedReportYear) return base;
+    let filtered = baseAggregatedData;
 
-    const matchesEntry = (p) => {
-      // derive year and month from imported fields or timestamp (no default to current year)
-      let y = p?.year ?? p?.years;
-      if ((y === undefined || y === null || String(y).trim() === "") && p?.timestamp) {
-        const d = new Date(p.timestamp);
-        if (!isNaN(d.getTime())) y = d.getFullYear();
-      }
-      let m = p?.month;
-      if (typeof m === 'string') {
-        const idx = MONTHS.findIndex(mon => mon.toLowerCase() === m.toLowerCase());
-        if (idx !== -1) m = idx + 1;
-      }
-      if (m !== undefined && m !== null) m = Number(m);
-      if (y !== undefined && y !== null) y = Number(y);
-
-      if (selectedReportYear && selectedReportMonth) {
-        return Number(y) === Number(selectedReportYear) && Number(m) === Number(selectedReportMonth);
-      }
-      if (selectedReportYear) return Number(y) === Number(selectedReportYear);
-      if (selectedReportMonth) return Number(m) === Number(selectedReportMonth);
-      return false;
-    };
-
-    return base.filter(item => {
-      // find any original price record for this commodity/store/size that matches the report selection (case-insensitive)
-      const entries = pricesArray.filter(p => p &&
-        canonical(p.commodity) === canonical(item.commodity) &&
-        canonical(p.store || 'Unknown') === canonical(item.store || 'Unknown') &&
-        canonical(p.size || '') === canonical(item.size || '')
+    // Apply commodity filter if specific commodity is selected (not "all")
+    if (selectedCommodity && selectedCommodity !== 'all') {
+      filtered = filtered.filter(item => 
+        canonical(item.commodity).toLowerCase().includes(canonical(selectedCommodity).toLowerCase())
       );
-      return entries.some(matchesEntry);
-    });
-  }, [pricesArray, selectedReportMonth, selectedReportYear, selectedCommodity, selectedStore, searchTerm, srpLookup, prevailingLookup]);
+    }
 
-  // Count unique commodities and stores in filteredData
+    // Apply brand filter if specific brand is selected (not "all")
+    if (selectedBrand && selectedBrand !== 'all') {
+      filtered = filtered.filter(item => 
+        canonical(item.brand || '').toLowerCase() === canonical(selectedBrand).toLowerCase()
+      );
+    }
+
+    // Apply month/year filters
+    if ((!selectedReportMonth || selectedReportMonth === '') && (!selectedReportYear || selectedReportYear === '')) {
+      return filtered;
+    }
+
+    return filtered.filter(item => {
+      const itemMonth = typeof item.month === 'number' ? item.month : 
+                       typeof item.month === 'string' ? (MONTHS.findIndex(m => m.toLowerCase() === item.month.toLowerCase()) + 1) : null;
+      const itemYear = typeof item.year === 'number' ? item.year :
+                      typeof item.year === 'string' && item.year.trim() !== '' ? Number(item.year) : null;
+
+      // Both month and year selected: must match both
+      if (selectedReportYear && selectedReportYear !== '' && selectedReportMonth && selectedReportMonth !== '') {
+        return itemYear === Number(selectedReportYear) && itemMonth === Number(selectedReportMonth);
+      }
+      
+      // Only year selected (all months for that year)
+      if (selectedReportYear && selectedReportYear !== '' && (!selectedReportMonth || selectedReportMonth === '')) {
+        return itemYear === Number(selectedReportYear);
+      }
+      
+      // Only month selected (that month across all years)
+      if (selectedReportMonth && selectedReportMonth !== '' && (!selectedReportYear || selectedReportYear === '')) {
+        return itemMonth === Number(selectedReportMonth);
+      }
+      
+      return true;
+    });
+  }, [baseAggregatedData, selectedReportMonth, selectedReportYear, selectedCommodity, selectedBrand]);
+
+  // Check if any filters are active
+  const isFiltered = selectedCommodity !== 'all' || selectedBrand !== 'all' || searchTerm || selectedStore !== 'all' || selectedStatusFilter;
+
+  // Count unique commodities and stores - use filtered data if filters are active
+  const commodityStoreSource = isFiltered && filteredData.length > 0 ? filteredData : baseAggregatedData;
+  
   const filteredCommodityCount = useMemo(() => {
     const set = new Set();
-    filteredData.forEach(item => {
+    commodityStoreSource.forEach(item => {
       if (item.commodity) set.add(item.commodity.trim().toLowerCase());
     });
     return set.size;
-  }, [filteredData]);
+  }, [commodityStoreSource]);
 
   const filteredStoreCount = useMemo(() => {
     const set = new Set();
-    filteredData.forEach(item => {
+    commodityStoreSource.forEach(item => {
       if (item.store) set.add(item.store.trim().toLowerCase());
     });
     return set.size;
-  }, [filteredData]);
+  }, [commodityStoreSource]);
 
   // (moved above)
 
@@ -862,8 +1249,8 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     return storesWithAvgSRP;
   };
 
-  // Use reportData when month/year is selected, otherwise use filteredData for analysis
-  const dataForAnalysis = (selectedReportMonth || selectedReportYear) ? reportData : filteredData;
+  // Use reportData when month/year is selected, otherwise use isFiltered to decide between filteredData and baseAggregatedData
+  const dataForAnalysis = (selectedReportMonth || selectedReportYear) ? reportData : (isFiltered ? filteredData : baseAggregatedData);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -878,68 +1265,95 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
     return filteredData.slice(startIdx, startIdx + itemsPerPage);
   }, [filteredData, currentPage]);
 
-  // Determine the source used for exports: when a month/year is selected use reportData, otherwise prefer filteredData then paginatedData
-  const reportSource = (selectedReportMonth || selectedReportYear) ? reportData : (filteredData.length > 0 ? filteredData : paginatedData);
+  // Determine the source used for exports and report preview
+  const reportDataSource = isFiltered ? filteredData : baseAggregatedData;
 
+  // Determine the source used for exports: when a month/year is selected use reportData, otherwise use reportDataSource
+  const reportSource = (selectedReportMonth || selectedReportYear) ? reportData : reportDataSource;
 
-  // Calculate summary statistics (use dataForAnalysis so it follows selected month/year)
-  const compliantCount = dataForAnalysis.filter(d => d.isCompliant).length;
-  const nonCompliantCount = dataForAnalysis.filter(d => !d.isCompliant).length;
-  const totalRecords = dataForAnalysis.length;
-  const complianceRate = totalRecords > 0 ? ((compliantCount / totalRecords) * 100).toFixed(1) : 0;
+  // Use filteredData if filters are active, otherwise use baseAggregatedData for fast initial load
+  const statsSource = isFiltered && filteredData.length > 0 ? filteredData : baseAggregatedData;
+  
+  const stats = useMemo(() => {
+    const analysisData = statsSource;
+    
+    if (analysisData.length === 0) {
+      return {
+        compliantCount: 0, nonCompliantCount: 0, totalRecords: 0, complianceRate: 0,
+        avgPriceChangeAbs: "0.00", topIncrease: null, topDecrease: null,
+        higherPreviousCount: 0, higherSRPCount: 0, decreasedCount: 0, stableCount: 0
+      };
+    }
+    
+    const compliantCount = analysisData.filter(d => d.isCompliant).length;
+    const nonCompliantCount = analysisData.filter(d => !d.isCompliant).length;
+    const totalRecords = analysisData.length;
+    const complianceRate = totalRecords > 0 ? ((compliantCount / totalRecords) * 100).toFixed(1) : 0;
+    const avgPriceChangeAbs = totalRecords > 0
+      ? (analysisData.reduce((acc, curr) => acc + (curr.priceChange ?? 0), 0) / totalRecords).toFixed(2)
+      : "0.00";
 
-  // Compute average price change using only valid numeric `priceChange` values
-  const validPriceChanges = dataForAnalysis
-    .map(d => d.priceChange)
-    .filter(v => typeof v === 'number' && !Number.isNaN(v));
-  const validCount = validPriceChanges.length;
-  const avgPriceChange = validCount > 0
-    ? (validPriceChanges.reduce((acc, curr) => acc + curr, 0) / validCount)
-    : null;
-  const avgPriceChangeAbs = avgPriceChange !== null ? Math.abs(avgPriceChange).toFixed(2) : null;
+    // Get top increase/decrease only if there are actual price changes
+    const itemsWithIncrease = analysisData.filter(d => d.priceChange !== null && d.priceChange !== undefined && d.priceChange > 0);
+    const itemsWithDecrease = analysisData.filter(d => d.priceChange !== null && d.priceChange !== undefined && d.priceChange < 0);
+    
+    const topIncrease = itemsWithIncrease.length > 0 
+      ? itemsWithIncrease.sort((a, b) => b.priceChange - a.priceChange)[0]
+      : null;
+    const topDecrease = itemsWithDecrease.length > 0
+      ? itemsWithDecrease.sort((a, b) => a.priceChange - b.priceChange)[0]
+      : null;
+    
+    const higherPreviousCount = analysisData.filter(d => d.statusType === "higher-than-previous").length;
+    const higherSRPCount = analysisData.filter(d => d.statusType === "higher-than-srp").length;
+    const decreasedCount = analysisData.filter(d => d.statusType === "decreased").length;
+    const stableCount = analysisData.filter(d => d.statusType === "stable").length;
+    
+    return {
+      compliantCount, nonCompliantCount, totalRecords, complianceRate, avgPriceChangeAbs,
+      topIncrease, topDecrease, higherPreviousCount, higherSRPCount, decreasedCount, stableCount
+    };
+  }, [statsSource]);
 
-  const [topIncrease] = [...dataForAnalysis].sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity));
-  const [topDecrease] = [...dataForAnalysis].sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity));
-  const topNonCompliant = [...dataForAnalysis]
-    .filter((d) => !d.isCompliant)
-    .sort((a, b) => {
-      const overA = a.srp ? (a.currentPrice || 0) - a.srp : 0;
-      const overB = b.srp ? (b.currentPrice || 0) - b.srp : 0;
-      return overB - overA;
-    })[0];
+  // Destructure from memoized stats
+  const { compliantCount, nonCompliantCount, totalRecords, complianceRate, avgPriceChangeAbs, topIncrease, topDecrease, higherPreviousCount, higherSRPCount, decreasedCount, stableCount } = stats;
+  const nonCompliantCount_old = nonCompliantCount;  // Keep for backward compat
+  const topNonCompliant = null;  // Simplify by removing this calculation
 
   // Format the average price change sign correctly
   const avgChangeSign = parseFloat(avgPriceChangeAbs) > 0 ? "+" : parseFloat(avgPriceChangeAbs) < 0 ? "-" : "";
   const avgChangeValue = Math.abs(parseFloat(avgPriceChangeAbs)).toFixed(2);
-
-  // Count status types
-  const higherPreviousCount = dataForAnalysis.filter(d => d.statusType === "higher-than-previous").length;
-  const higherSRPCount = dataForAnalysis.filter(d => d.statusType === "higher-than-srp").length;
-  const decreasedCount = dataForAnalysis.filter(d => d.statusType === "decreased").length;
-  const stableCount = dataForAnalysis.filter(d => d.statusType === "stable").length;
   
   // Build enhanced narrative summary
-  const top5HighestList = getTop5Highest();
-  const top5LowestList = getTop5Lowest();
+  const topHighestLowet = useMemo(() => {
+    return {
+      top5Highest: getTop5Highest(),
+      top5Lowest: getTop5Lowest()
+    };
+  }, [dataForAnalysis.length]);
+
+  const top5HighestList = topHighestLowet.top5Highest;
+  const top5LowestList = topHighestLowet.top5Lowest;
   const topIncreaseAmount = topIncrease?.priceChange || 0;
   const topDecreaseAmount = topDecrease?.priceChange || 0;
 
   const summaryNarrative = useMemo(() => {
-    const topMovers = topIncrease ? `The highest increase was ${topIncrease.commodity} at ${topIncrease.store} (₱${topIncreaseAmount.toFixed(2)}).` : "No data available";
-    const topDecr = (topDecrease && topDecreaseAmount !== 0) ? `The largest decrease was ${topDecrease.commodity} at ${topDecrease.store} (₱${topDecreaseAmount.toFixed(2)}).` : "";
-
-    // Only report average when we have realistic numeric data
-    const avgSentence = avgPriceChange !== null
-      ? `the average price change is ${avgPriceChange > 0 ? '+' : avgPriceChange < 0 ? '-' : ''}₱${Math.abs(avgPriceChange).toFixed(2)} (n=${validCount}).`
-      : `insufficient numeric data to compute average price change.`;
+    const topMovers = topIncrease && topIncreaseAmount > 0 
+      ? `The highest increase was ${topIncrease.commodity} at ${topIncrease.store} (₱${topIncreaseAmount.toFixed(2)}).` 
+      : "";
+    const topDecr = topDecrease && topDecreaseAmount < 0 
+      ? `The largest decrease was ${topDecrease.commodity} at ${topDecrease.store} (₱${Math.abs(topDecreaseAmount).toFixed(2)}).` 
+      : "";
+    
+    const topMoversSection = (topMovers || topDecr) 
+      ? `\n\nTop Movers: ${topMovers} ${topDecr}`.trim()
+      : "";
 
     return `
-Summary: Across ${totalRecords} monitored products, ${avgSentence}
-Status breakdown: ${higherPreviousCount} higher than previous price, ${higherSRPCount} higher than SRP, ${decreasedCount} decreased.
-
-Top Movers: ${topMovers} ${topDecr}
+Summary: Across ${totalRecords} monitored products, the average price change is ${avgChangeSign}₱${avgChangeValue}.
+Status breakdown: ${higherPreviousCount} higher than previous price, ${higherSRPCount} higher than SRP, ${decreasedCount} decreased.${topMoversSection}
 `;
-  }, [selectedReportMonth, selectedReportYear, MONTHS, totalRecords, avgPriceChange, validCount, higherPreviousCount, higherSRPCount, decreasedCount, topIncrease, topDecrease, topIncreaseAmount, topDecreaseAmount]);
+  }, [totalRecords, avgChangeSign, avgChangeValue, higherPreviousCount, higherSRPCount, decreasedCount, topIncrease, topDecrease, topIncreaseAmount, topDecreaseAmount]);
 
   useEffect(() => {
     if (!isNarrativeEdited) {
@@ -1005,7 +1419,7 @@ Top Movers: ${topMovers} ${topDecr}
   // Download as Word (docx) with PDF-like format
   // Word generation moved to src/services/reportGenerator.js
 
-  const previewRows = (selectedReportMonth || selectedReportYear) ? reportData.slice(0, 5) : paginatedData.slice(0, 5);
+  const previewRows = (selectedReportMonth || selectedReportYear) ? reportData.slice(0, 5) : reportDataSource.slice(0, 5);
 
   // Get status label and color
   const getStatusLabel = (statusType) => {
@@ -1057,7 +1471,6 @@ Top Movers: ${topMovers} ${topDecr}
                 setReportNarrative(summaryNarrative);
                 setShowReportModal(true);
               }}
-              disabled={paginatedData.length === 0}
             >
               <Download size={16} />
               Generate Report
@@ -1104,76 +1517,32 @@ Top Movers: ${topMovers} ${topDecr}
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
+              <select
+                className="ca-select"
+                value={selectedStatusFilter}
+                onChange={e => { setSelectedStatusFilter(e.target.value); setCurrentPage(1); }}
+                style={{ minWidth: 160 }}
+              >
+                <option value="">Status</option>
+                <option value="higher-than-previous">Higher than Previous</option>
+                <option value="higher-than-srp">Higher than SRP</option>
+                <option value="decreased">Decreased</option>
+                <option value="stable">Stable</option>
+              </select>
             </div>
           </div>
         </div>
         {/* Search Bar with commodity datalist embedded */}
         <div className="ca-search-row">
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minWidth: 360, marginRight: 8 }}>
-            <Search size={18} color="#64748b" style={{ position: 'absolute', left: 10 }} />
-            <input
-              type="text"
-              className="ca-search-input"
-              placeholder="Enter commodity"
-              value={searchTerm}
-              onFocus={() => setShowSuggestions(true)}
-              onChange={e => {
-                const v = e.target.value;
-                setSearchTerm(v);
-                setCurrentPage(1);
-              }}
-              onBlur={e => {
-                const v = e.target.value;
-                const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
-                if (match && match !== 'all') setSelectedCommodity(match);
-                else setSelectedCommodity('all');
-                // delay hiding to allow click on suggestion
-                setTimeout(() => setShowSuggestions(false), 120);
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const v = e.currentTarget.value;
-                  const match = uniqueCommodities.find(c => canonical(c).toLowerCase() === canonical(v).toLowerCase());
-                  if (match && match !== 'all') setSelectedCommodity(match);
-                  else setSelectedCommodity('all');
-                }
-              }}
-              style={{ paddingLeft: 36, minWidth: 260 }}
-            />
-            {showSuggestions && (
-              (() => {
-                const q = String(searchTerm || "").trim().toLowerCase();
-                const suggestions = uniqueCommodities.filter(c => c && c !== 'all' && c.toLowerCase().includes(q));
-                // show all matching suggestions; the container keeps its size via maxHeight and scroll
-                const limited = suggestions;
-                if (limited.length === 0) return null;
-                return (
-                  <div style={{ position: 'absolute', top: '42px', left: 0, right: 'auto', zIndex: 1200, width: '100%', maxWidth: 520 }}>
-                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(2,6,23,0.08)', maxHeight: 200, overflowY: 'auto' }}>
-                      {limited.map((c, i) => (
-                        <div
-                          key={c + '_' + i}
-                          onMouseDown={e => e.preventDefault()}
-                          onClick={() => { setSearchTerm(c); setSelectedCommodity(c); setShowSuggestions(false); setCurrentPage(1); }}
-                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: i < limited.length - 1 ? '1px solid #f1f5f9' : 'none' }}
-                        >
-                          {c}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()
-            )}
-            {searchTerm && (
-              <button
-                onClick={() => { setSearchTerm(""); setCurrentPage(1); setSelectedCommodity('all'); }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", padding: "4px", marginLeft: 4 }}
-              >
-                <X size={18} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            searchTerm={searchTerm}
+            onSearchChange={handleSearchChange}
+            showSuggestions={showSuggestions}
+            setShowSuggestions={setShowSuggestions}
+            uniqueCommodities={uniqueCommodities}
+            canonical={canonical}
+            onSelectCommodity={setSelectedCommodity}
+          />
           <select
             className="ca-select"
             value={selectedBrand}

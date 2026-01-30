@@ -32,6 +32,7 @@ function App() {
     return userData ? JSON.parse(userData) : null;
   });
   const [showLoginPage, setShowLoginPage] = useState(false);
+  const [analysisFilters, setAnalysisFilters] = useState({});
 
   useEffect(() => { localStorage.setItem("activeTab", activeTab); }, [activeTab]);
   useEffect(() => { if (activeTab !== "dataManagement") setIsDataMgmtOpen(false); }, [activeTab]);
@@ -166,7 +167,7 @@ function App() {
         window.toast.error(`Import failed: ${error.message}`);
       }
     }
-    loadData();
+    loadData(); 
     if (window.toast && window.toast.success) window.toast.success(`Imported ${importedData.length} records`);
   };
 
@@ -227,6 +228,12 @@ function App() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  const handleSeeAnalysis = (filters) => {
+    setAnalysisFilters(filters || {});
+    setActiveTab('comparativepriceanalysis');
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+  };
+
   const calculatePrevailing = () => {
     const grouped = prices.reduce((acc, item) => {
       if (!acc[item.commodity]) acc[item.commodity] = [];
@@ -264,7 +271,7 @@ function App() {
   // --- MODERN STYLES ---
   const sidebarStyle = {
     width: "260px",
-    background: "#0f172a", 
+    background: "#29296E", 
     color: "#f8fafc",
     minHeight: "100vh",
     position: "fixed",
@@ -279,9 +286,9 @@ function App() {
     gap: "12px",
     padding: "12px 20px",
     margin: "4px 16px",
-    background: isActive ? "#334155" : "transparent",
+    background: isActive ? "#1E4387" : "transparent",
     border: "none",
-    color: isActive ? "#38bdf8" : "#94a3b8",
+    color: isActive ? "#ffffff" : "#94a3b8",
     cursor: "pointer",
     borderRadius: "8px",
     fontSize: "0.95rem",
@@ -296,9 +303,9 @@ function App() {
     gap: "10px",
     padding: "10px 18px",
     margin: "2px 16px 2px 32px",
-    background: isActive ? "#1e293b" : "transparent",
+    background: isActive ? "#1E4387" : "transparent",
     border: "none",
-    color: isActive ? "#38bdf8" : "#94a3b8",
+    color: isActive ? "#ffffff" : "#94a3b8",
     cursor: "pointer",
     borderRadius: "8px",
     fontSize: "0.9rem",
@@ -393,43 +400,33 @@ function App() {
       </aside>
 
       <main className="content">
-        <header className="content-header">
+        <header className="content-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 className="header-title">{tabLabels[activeTab] || ''}</h1>
-            <p className="header-sub">Welcome back, Monitoring Officer</p>
+            <p className="header-sub">Welcome, {user?.fullName || user?.email || 'User'}</p>
           </div>
+          <button onClick={handleLogout} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 20px',
+            background: '#DF1E25',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }} onMouseEnter={(e) => e.target.style.background = '#7E1321'} onMouseLeave={(e) => e.target.style.background = '#DF1E25'}>
+            <span>Logout</span>
+          </button>
         </header>
 
-        {/* Page container — shared responsive wrapper */}
-        <div className="content-inner">
-          {/* Welcome Container */}
-          <div className="welcome-box">
-            <div>
-              <h3 style={{ margin: '0 0 4px 0', color: '#0f172a', fontSize: '0.95rem', fontWeight: 600 }}>Welcome, Admin</h3>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>You are logged in as {user?.fullName || user?.email || 'User'}</p>
-            </div>
-            <button onClick={handleLogout} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 20px',
-              background: '#dc2626',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }} onMouseEnter={(e) => e.target.style.background = '#b91c1c'} onMouseLeave={(e) => e.target.style.background = '#dc2626'}>
-              <span>Logout</span>
-            </button>
-          </div>
-
-          <div>
+        <div style={{ maxWidth: "1200px" }}>
           {activeTab === "dashboard" && <Dashboard prices={prices} />}
-          {activeTab === "monitoring" && <Monitoring prices={prices} form={form} handleChange={handleChange} handleSave={handleSave} />}
-          {activeTab === "comparativepriceanalysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} />}
+          {activeTab === "monitoring" && <Monitoring prices={prices} onSeeAnalysis={handleSeeAnalysis} form={form} handleChange={handleChange} handleSave={handleSave} />}
+          {activeTab === "comparativepriceanalysis" && <ComparativeAnalysis prices={prices} prevailingReport={prevailingReport} initialFilters={analysisFilters} />}
           {activeTab === "inquiry" && <Inquiry prices={prices} />}
           {activeTab === "dataManagement" && dataMgmtTab === "basic" && (
             <BasicNecessities 
@@ -470,7 +467,6 @@ function App() {
               subTab={dataMgmtTab}
             />
           )}
-          </div>
         </div>
       </main>
 

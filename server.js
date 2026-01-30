@@ -51,7 +51,9 @@ const printedLetterSchema = new mongoose.Schema({
   store: { type: String, required: true, trim: true },
   datePrinted: { type: Date, required: true },
   deadline: { type: Date, required: true },
+  replied: { type: Boolean, default: false },
   printedBy: { type: String, default: "", trim: true },
+  copiesPrinted: { type: Number, default: 1 },
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
@@ -150,10 +152,43 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get all price data
+// Get all price data (with pagination or all data for backward compatibility)
 app.get('/api/prices', async (req, res) => {
   try {
-    const prices = await PriceData.find().sort({ timestamp: -1 });
+    // If pagination params are provided, use pagination
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 50;
+      const skip = (page - 1) * limit;
+
+      const [prices, total] = await Promise.all([
+        PriceData.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+        PriceData.countDocuments()
+      ]);
+
+      res.json({
+        data: prices,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } else {
+      // If no pagination params, return all data as array (for backward compatibility)
+      const prices = await PriceData.find().sort({ timestamp: -1 }).lean();
+      res.json(prices);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all price data without pagination (for compatibility)
+app.get('/api/prices/all/data', async (req, res) => {
+  try {
+    const prices = await PriceData.find().sort({ timestamp: -1 }).lean();
     res.json(prices);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -210,10 +245,43 @@ app.delete('/api/prices/:id', async (req, res) => {
 });
 
 // ========== BASIC NECESSITIES ENDPOINTS ==========
-// Get all Basic Necessities data
+// Get all Basic Necessities data (with pagination or all data for backward compatibility)
 app.get('/api/basic-necessities', async (req, res) => {
   try {
-    const data = await BasicNecessities.find().sort({ timestamp: -1 });
+    // If pagination params are provided, use pagination
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 50;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        BasicNecessities.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+        BasicNecessities.countDocuments()
+      ]);
+
+      res.json({
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } else {
+      // If no pagination params, return all data as array (for backward compatibility)
+      const data = await BasicNecessities.find().sort({ timestamp: -1 }).lean();
+      res.json(data);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all Basic Necessities data without pagination (for compatibility)
+app.get('/api/basic-necessities/all/data', async (req, res) => {
+  try {
+    const data = await BasicNecessities.find().sort({ timestamp: -1 }).lean();
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -270,10 +338,43 @@ app.delete('/api/basic-necessities/:id', async (req, res) => {
 });
 
 // ========== PRIME COMMODITIES ENDPOINTS ==========
-// Get all Prime Commodities data
+// Get all Prime Commodities data (with pagination or all data for backward compatibility)
 app.get('/api/prime-commodities', async (req, res) => {
   try {
-    const data = await PrimeCommodities.find().sort({ timestamp: -1 });
+    // If pagination params are provided, use pagination
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 50;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        PrimeCommodities.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+        PrimeCommodities.countDocuments()
+      ]);
+
+      res.json({
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } else {
+      // If no pagination params, return all data as array (for backward compatibility)
+      const data = await PrimeCommodities.find().sort({ timestamp: -1 }).lean();
+      res.json(data);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all Prime Commodities data without pagination (for compatibility)
+app.get('/api/prime-commodities/all/data', async (req, res) => {
+  try {
+    const data = await PrimeCommodities.find().sort({ timestamp: -1 }).lean();
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -328,10 +429,43 @@ app.delete('/api/prime-commodities/:id', async (req, res) => {
 });
 
 // ========== CONSTRUCTION MATERIALS ENDPOINTS ==========
-// Get all Construction Materials data
+// Get all Construction Materials data (with pagination or all data for backward compatibility)
 app.get('/api/construction-materials', async (req, res) => {
   try {
-    const data = await ConstructionMaterials.find().sort({ timestamp: -1 });
+    // If pagination params are provided, use pagination
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 50;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        ConstructionMaterials.find().sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+        ConstructionMaterials.countDocuments()
+      ]);
+
+      res.json({
+        data,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } else {
+      // If no pagination params, return all data as array (for backward compatibility)
+      const data = await ConstructionMaterials.find().sort({ timestamp: -1 }).lean();
+      res.json(data);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all Construction Materials data without pagination (for compatibility)
+app.get('/api/construction-materials/all/data', async (req, res) => {
+  try {
+    const data = await ConstructionMaterials.find().sort({ timestamp: -1 }).lean();
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -507,7 +641,7 @@ app.get('/api/printed-letters', async (req, res) => {
 // Add new printed letter record
 app.post('/api/printed-letters', async (req, res) => {
   try {
-    const { store, datePrinted, deadline, printedBy } = req.body;
+    const { store, datePrinted, deadline, printedBy, replied, copiesPrinted } = req.body;
     
     if (!store || !datePrinted || !deadline) {
       return res.status(400).json({ error: 'Store, datePrinted, and deadline are required' });
@@ -517,7 +651,9 @@ app.post('/api/printed-letters', async (req, res) => {
       store,
       datePrinted: new Date(datePrinted),
       deadline: new Date(deadline),
-      printedBy: printedBy || ''
+      printedBy: printedBy || '',
+      replied: !!replied,
+      copiesPrinted: typeof copiesPrinted === 'number' ? copiesPrinted : 1
     });
 
     await newLetter.save();
@@ -525,6 +661,21 @@ app.post('/api/printed-letters', async (req, res) => {
     res.status(201).json(newLetter);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Update printed letter (e.g., set `replied`)
+app.put('/api/printed-letters/:id', async (req, res) => {
+  try {
+    const update = { ...req.body };
+    if (update.datePrinted) update.datePrinted = new Date(update.datePrinted);
+    if (update.deadline) update.deadline = new Date(update.deadline);
+
+    const updated = await PrintedLetter.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Record not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

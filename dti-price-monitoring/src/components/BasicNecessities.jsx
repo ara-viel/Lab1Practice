@@ -13,6 +13,7 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedYear, setSelectedYear] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedStore, setSelectedStore] = useState("all");
   const [sortConfig, setSortConfig] = useState({ key: "timestamp", direction: "desc" });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
@@ -58,9 +59,17 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
         }
       }
 
+      // Store filter
+      if (selectedStore !== "all") {
+        const itemStore = (item.store || "").toLowerCase();
+        if (itemStore !== selectedStore.toLowerCase()) {
+          return false;
+        }
+      }
+
       return matchesSearch;
     });
-  }, [prices, searchTerm, selectedYear, selectedMonth]);
+  }, [prices, searchTerm, selectedYear, selectedMonth, selectedStore]);
 
   useEffect(() => {
     // Remove selections that are no longer in the filtered set
@@ -73,6 +82,20 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
       return next;
     });
   }, [filteredData]);
+
+  // Get available stores from data
+  const availableStores = useMemo(() => {
+    if (!prices || prices.length === 0) return [];
+    
+    const stores = new Set();
+    prices.forEach(item => {
+      if (item.category === 'basic' && item.store) {
+        stores.add(item.store);
+      }
+    });
+    
+    return Array.from(stores).sort();
+  }, [prices]);
 
   // Get available years from data
   const availableYears = useMemo(() => {
@@ -465,6 +488,24 @@ export default function BasicNecessities({ prices, onAddData, onDeleteData, onUp
             <option value="October">October</option>
             <option value="November">November</option>
             <option value="December">December</option>
+          </select>
+        </div>
+
+        {/* Store Filter Dropdown */}
+        <div className="dm-filter-group">
+          <select
+            value={selectedStore}
+            onChange={(e) => {
+              setSelectedStore(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="dm-select"
+            style={{ minWidth: 160 }}
+          >
+            <option value="all">All Stores</option>
+            {availableStores.map(store => (
+              <option key={store} value={store}>{store}</option>
+            ))}
           </select>
         </div>
       </div>
