@@ -783,22 +783,52 @@ export default function Dashboard({ prices: pricesProp }) {
     const grouped = {};
     filteredPrices.forEach((p) => {
       if (!p || !p.commodity || !p.store) return;
-      const key = `${p.commodity}_${p.store}`;
+
+      // Build a size/unit label so we only compare like-for-like items
+      const sizeLabel = [p.size || '', p.unit || ''].filter(Boolean).join(' ').trim() || 'Unknown';
+      const key = `${p.commodity}_${p.store}_${sizeLabel}`;
+
+      // Parse numeric price, skip records with invalid/missing price
+      let priceNum = null;
+      try {
+        if (p.price !== undefined && p.price !== null && String(p.price).trim() !== '') {
+          const n = Number(p.price);
+          if (!Number.isNaN(n)) priceNum = n;
+        }
+      } catch (e) { priceNum = null; }
+      if (priceNum === null) return;
+
+      // Timestamp fallback: prefer explicit timestamp, else derive from years/month or month/year
+      let ts = 0;
+      if (p.timestamp) {
+        const d = new Date(p.timestamp);
+        if (!Number.isNaN(d.getTime())) ts = d.getTime();
+      } else if (p.years && p.month !== undefined && p.month !== null) {
+        const monthNum = monthNameToNumber(p.month);
+        const yr = Number(p.years);
+        if (!Number.isNaN(yr) && monthNum !== null) ts = new Date(yr, monthNum, 1).getTime();
+      } else if (p.years) {
+        const yr = Number(p.years);
+        if (!Number.isNaN(yr)) ts = new Date(yr, 0, 1).getTime();
+      }
+
       if (!grouped[key]) grouped[key] = [];
-      grouped[key].push({ price: Number(p.price) || 0, ts: p.timestamp ? new Date(p.timestamp).getTime() : 0 });
+      grouped[key].push({ price: priceNum, ts });
     });
 
     const deltas = Object.entries(grouped).map(([key, arr]) => {
-      const sorted = arr.sort((a, b) => b.ts - a.ts);
-      const latest = sorted[0]?.price ?? 0;
+      const sorted = arr.slice().sort((a, b) => b.ts - a.ts);
+      const latest = sorted[0]?.price ?? null;
       const prev = sorted[1]?.price ?? latest;
+      // if latest is null just skip
+      if (latest === null) return null;
       return {
         key,
-        change: latest - prev,
+        change: latest - (prev ?? latest),
         latest,
         prev,
       };
-    });
+    }).filter(Boolean);
 
     // Largest increases
     const topUp = [...deltas].filter(d => d.change > 0).sort((a, b) => b.change - a.change).slice(0, 5);
