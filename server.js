@@ -51,7 +51,9 @@ const printedLetterSchema = new mongoose.Schema({
   store: { type: String, required: true, trim: true },
   datePrinted: { type: Date, required: true },
   deadline: { type: Date, required: true },
+  replied: { type: Boolean, default: false },
   printedBy: { type: String, default: "", trim: true },
+  copiesPrinted: { type: Number, default: 1 },
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
@@ -639,7 +641,7 @@ app.get('/api/printed-letters', async (req, res) => {
 // Add new printed letter record
 app.post('/api/printed-letters', async (req, res) => {
   try {
-    const { store, datePrinted, deadline, printedBy } = req.body;
+    const { store, datePrinted, deadline, printedBy, replied, copiesPrinted } = req.body;
     
     if (!store || !datePrinted || !deadline) {
       return res.status(400).json({ error: 'Store, datePrinted, and deadline are required' });
@@ -649,7 +651,9 @@ app.post('/api/printed-letters', async (req, res) => {
       store,
       datePrinted: new Date(datePrinted),
       deadline: new Date(deadline),
-      printedBy: printedBy || ''
+      printedBy: printedBy || '',
+      replied: !!replied,
+      copiesPrinted: typeof copiesPrinted === 'number' ? copiesPrinted : 1
     });
 
     await newLetter.save();
@@ -657,6 +661,21 @@ app.post('/api/printed-letters', async (req, res) => {
     res.status(201).json(newLetter);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Update printed letter (e.g., set `replied`)
+app.put('/api/printed-letters/:id', async (req, res) => {
+  try {
+    const update = { ...req.body };
+    if (update.datePrinted) update.datePrinted = new Date(update.datePrinted);
+    if (update.deadline) update.deadline = new Date(update.deadline);
+
+    const updated = await PrintedLetter.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Record not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -630,57 +630,14 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
         const previousPrice = previousRec ? previousRec.price : null;
         const priceChange = (currentPrice !== null && previousPrice !== null) ? (currentPrice - previousPrice) : null;
         const percentChange = (previousPrice !== null && previousPrice !== 0 && priceChange !== null) ? ((priceChange / previousPrice) * 100) : null;
-<<<<<<< Updated upstream
-        
-        
-        // Prevailing price across this bucket (mode -> prefer highest price when tied -> fallback to highest price)
-        const freq = {};
-        const lastTs = {};
-        recs.forEach(r => {
-          const p = r.price;
-          if (p === null || p === undefined) return;
-          freq[p] = (freq[p] || 0) + 1;
-          lastTs[p] = Math.max(lastTs[p] || 0, r.ts || 0);
-        });
-        let prevailingPrice = null;
-        const counts = Object.values(freq);
-        const maxCount = counts.length ? Math.max(...counts) : 0;
-        if (maxCount > 1) {
-          // among prices with max frequency, choose the highest price; tie-break using latest timestamp
-          let bestPrice = -Infinity;
-          let bestTs = -1;
-          Object.keys(freq).forEach(pKey => {
-            const count = freq[pKey];
-            if (count === maxCount) {
-              const ts = lastTs[pKey] || 0;
-              const pNum = Number(pKey);
-              if (pNum > bestPrice || (pNum === bestPrice && ts > bestTs)) {
-                bestPrice = pNum;
-                bestTs = ts;
-              }
-            }
-          });
-          prevailingPrice = bestPrice === -Infinity ? null : bestPrice;
-        } else {
-          // fallback to highest price (tie-break by latest ts)
-          let best = { price: -Infinity, ts: -1 };
-          recs.forEach(r => {
-            if (r.price === null || r.price === undefined) return;
-            if (r.price > best.price || (r.price === best.price && (r.ts || 0) > (best.ts || 0))) {
-              best = { price: r.price, ts: r.ts || 0 };
-            }
-          });
-          prevailingPrice = best.price === -Infinity ? null : best.price;
-        }
 
         // SRP lookup using brand+size key then fallback to commodity
         const srpKey = `${bucket.commodity}__${bucket.brand || ""}__${bucket.size || ""}`;
         const srpEntry = srpLookup[srpKey] || srpLookup[bucket.commodity] || { value: 0 };
         const srp = srpEntry?.value || 0;
-        // Prevailing price rules moved to shared calculator: mode > highest, cap at SRP
+        // Prevailing price rules delegated to shared calculator (mode > highest, cap at SRP)
         const prevailingPrice = computePrevailingPrice(recs, srp);
 
-<<<<<<< Updated upstream
         let statusType = "decreased";
         if (currentPrice !== null && previousPrice !== null) {
           if (currentPrice > previousPrice) {
@@ -980,22 +937,23 @@ export default function ComparativeAnalysis({ prices, monitoringData = null, pre
 
 
   // Calculate summary statistics (use dataForAnalysis so it follows selected month/year)
-  const compliantCount = dataForAnalysis.filter(d => d.isCompliant).length;
-  const nonCompliantCount = dataForAnalysis.filter(d => !d.isCompliant).length;
-  const totalRecords = dataForAnalysis.length;
-  const complianceRate = totalRecords > 0 ? ((compliantCount / totalRecords) * 100).toFixed(1) : 0;
-  const avgPriceChangeAbs = totalRecords > 0
-    ? (dataForAnalysis.reduce((acc, curr) => acc + (curr.priceChange ?? 0), 0) / totalRecords).toFixed(2)
-    : "0.00";
+  const stats = useMemo(() => {
+    const compliantCount = dataForAnalysis.filter(d => d.isCompliant).length;
+    const nonCompliantCount = dataForAnalysis.filter(d => !d.isCompliant).length;
+    const totalRecords = dataForAnalysis.length;
+    const complianceRate = totalRecords > 0 ? ((compliantCount / totalRecords) * 100).toFixed(1) : 0;
+    const avgPriceChangeAbs = totalRecords > 0
+      ? (dataForAnalysis.reduce((acc, curr) => acc + (curr.priceChange ?? 0), 0) / totalRecords).toFixed(2)
+      : "0.00";
 
     const [topIncrease] = [...dataForAnalysis].sort((a, b) => ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : -Infinity) - ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : -Infinity));
     const [topDecrease] = [...dataForAnalysis].sort((a, b) => ((a.priceChange !== null && a.priceChange !== undefined) ? a.priceChange : Infinity) - ((b.priceChange !== null && b.priceChange !== undefined) ? b.priceChange : Infinity));
-    
+
     const higherPreviousCount = dataForAnalysis.filter(d => d.statusType === "higher-than-previous").length;
     const higherSRPCount = dataForAnalysis.filter(d => d.statusType === "higher-than-srp").length;
     const decreasedCount = dataForAnalysis.filter(d => d.statusType === "decreased").length;
     const stableCount = dataForAnalysis.filter(d => d.statusType === "stable").length;
-    
+
     return {
       compliantCount, nonCompliantCount, totalRecords, complianceRate, avgPriceChangeAbs,
       topIncrease, topDecrease, higherPreviousCount, higherSRPCount, decreasedCount, stableCount

@@ -54,6 +54,7 @@ export default function Inquiry({ prices }) {
   const [expandedStores, setExpandedStores] = useState([]);
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
   const [printedStores, setPrintedStores] = useState([]);
+  // reprintPending/reprintAwaiting removed — reprints now auto-persist after print completes
   const [currentStore, setCurrentStore] = useState(null);
   const previewRef = useRef(null);
   const isUserEditingRef = useRef(false);
@@ -73,7 +74,10 @@ export default function Inquiry({ prices }) {
             _id: letter._id,
             store: letter.store,
             datePrinted: letter.datePrinted,
-            deadline: letter.deadline
+            deadline: letter.deadline,
+            replied: !!letter.replied,
+            printedBy: letter.printedBy || '',
+            copiesPrinted: (typeof letter.copiesPrinted === 'number' && letter.copiesPrinted > 0) ? letter.copiesPrinted : 1
           })));
         }
       } catch (error) {
@@ -192,9 +196,12 @@ export default function Inquiry({ prices }) {
   };
 
   const toggleStore = (storeKey) => {
-    setExpandedStores(prev =>
-      prev.includes(storeKey) ? prev.filter(s => s !== storeKey) : [...prev, storeKey]
-    );
+    setExpandedStores(prev => {
+      // If the clicked store is already open, close it (result: no open stores).
+      if (prev.includes(storeKey)) return [];
+      // Otherwise, open the clicked store and close any others (only one open at a time).
+      return [storeKey];
+    });
   };
 
   const generateContent = (items) => {
@@ -211,7 +218,7 @@ export default function Inquiry({ prices }) {
       const brand = (item.brand && String(item.brand).trim()) ? item.brand : "N/A";
       const size = (item.size && String(item.size).trim()) ? item.size : "N/A";
       const commodity = (item.commodity && String(item.commodity).trim()) ? item.commodity : "N/A";
-      const srpDisplay = srp > 0 ? formatCurrency(srp) : "N/A";
+      const srpDisplay = srp > 0 ? formatCurrency(srp) : "--";
       const prevDisplay = prevMonthPrice > 0 ? formatCurrency(prevMonthPrice) : "N/A";
       const priceDisplay = price > 0 ? formatCurrency(price) : "N/A";
       const comparisonPrice = srp > 0 ? srp : prevMonthPrice;
@@ -264,6 +271,7 @@ ${commodityRows}
     const commodityList = items.map(i => i.commodity).join(", ");
     setLetter((prev) => ({ ...prev, subject: `Price Inquiry - ${commodityList}`, content: body }));
     setDraftedStore(items[0]?.store || "Unknown");
+    return body;
   };
 
   const handleLetterChange = (e) => {
@@ -288,6 +296,24 @@ ${commodityRows}
 
   const handlePrintCancel = () => setShowPrintConfirm(false);
 
+  // Toggle replied state for a printed letter
+  const handleToggleReplied = async (recordId, newValue) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/printed-letters/${recordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replied: !!newValue })
+      });
+      if (!res.ok) throw new Error('Failed to update replied status');
+      const updated = await res.json();
+      setPrintedStores(prev => prev.map(p => p._id === updated._id ? { ...p, replied: !!updated.replied } : p));
+    } catch (err) {
+      console.error('Failed to update replied status:', err);
+      // optimistic UI fallback: toggle locally
+      setPrintedStores(prev => prev.map(p => p._id === recordId ? { ...p, replied: !!newValue } : p));
+    }
+  };
+
   const savePrintedRecord = async (record) => {
     if (!record || !record.store) return;
     try {
@@ -297,7 +323,8 @@ ${commodityRows}
         body: JSON.stringify({
           store: record.store,
           datePrinted: record.datePrinted,
-          deadline: record.deadline
+          deadline: record.deadline,
+          copiesPrinted: record.copiesPrinted || 1
         })
       });
 
@@ -307,7 +334,10 @@ ${commodityRows}
           _id: savedLetter._id,
           store: savedLetter.store,
           datePrinted: savedLetter.datePrinted,
-          deadline: savedLetter.deadline
+          deadline: savedLetter.deadline,
+          replied: !!savedLetter.replied,
+          printedBy: savedLetter.printedBy || '',
+          copiesPrinted: (typeof savedLetter.copiesPrinted === 'number' && savedLetter.copiesPrinted > 0) ? savedLetter.copiesPrinted : 1
         }]));
         console.log('✅ Letter tracking saved to database');
       } else {
@@ -319,12 +349,15 @@ ${commodityRows}
       setPrintedStores(prev => ([...prev, {
         store: record.store,
         datePrinted: record.datePrinted,
-        deadline: record.deadline
+        deadline: record.deadline,
+        replied: false,
+        printedBy: '',
+        copiesPrinted: record.copiesPrinted || 1
       }]));
       // Also save to localStorage as backup
       localStorage.setItem("printedStores", JSON.stringify([
         ...printedStores,
-        { store: record.store, datePrinted: record.datePrinted, deadline: record.deadline }
+        { store: record.store, datePrinted: record.datePrinted, deadline: record.deadline, replied: false, printedBy: '', copiesPrinted: record.copiesPrinted || 1 }
       ]));
     }
   };
@@ -341,7 +374,8 @@ ${commodityRows}
       setPendingPrintRecord({
         store,
         datePrinted: datePrinted.toISOString(),
-        deadline: deadline.toISOString()
+        deadline: deadline.toISOString(),
+        copiesPrinted: 1
       });
     } else {
       setPendingPrintRecord(null);
@@ -375,6 +409,52 @@ ${commodityRows}
     if (pendingPrintRecord) {
       await savePrintedRecord(pendingPrintRecord);
       setPendingPrintRecord(null);
+    }
+  };
+
+  // Reprint a previously recorded letter for a store (non-editable reprint)
+  const handleReprint = (store) => {
+    try {
+      // Prefer flagged items used originally; fallback to all prices for store
+      const items = (flaggedByStore && flaggedByStore[store])
+        ? flaggedByStore[store]
+        : prices.filter(p => getStoreValue(p) === String(store || '').trim());
+      if (!items || items.length === 0) return;
+      setCurrentStore(store);
+      const html = generateContent(items);
+
+      const record = printedStores.find(p => p.store === store);
+
+      // When print completes, automatically persist the increment (no inline confirm)
+      const onComplete = async () => {
+        try {
+          if (record && record._id) {
+            const newCount = (record.copiesPrinted || 0) + 1;
+            // optimistic update
+            setPrintedStores(prev => prev.map(p => p._id === record._id ? { ...p, copiesPrinted: newCount } : p));
+            // persist to server
+            const res = await fetch(`http://localhost:5000/api/printed-letters/${record._id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ copiesPrinted: newCount })
+            });
+            if (res.ok) {
+              const updated = await res.json();
+              setPrintedStores(prev => prev.map(p => p._id === updated._id ? { ...p, copiesPrinted: typeof updated.copiesPrinted === 'number' ? updated.copiesPrinted : newCount } : p));
+            }
+          } else {
+            const datePrinted = new Date();
+            const deadline = addWorkingDays(datePrinted, 5);
+            await savePrintedRecord({ store, datePrinted: datePrinted.toISOString(), deadline: deadline.toISOString(), copiesPrinted: 1 });
+          }
+        } catch (err) {
+          console.error('Failed to persist copies after reprint:', err);
+        }
+      };
+
+      executePrintWithOverrides(onComplete, `Price Inquiry - ${store}`, html);
+    } catch (err) {
+      console.error('Failed to reprint:', err);
     }
   };
 
@@ -507,6 +587,84 @@ ${commodityRows}
     return printWindow;
   };
 
+  // Variant of executePrint that accepts explicit subject/content to avoid race with state
+  const executePrintWithOverrides = (onComplete, subject, content) => {
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${subject}</title>
+          <style>
+            @page { margin: 0.5in; size: 8.27in 11.69in; }
+            body { font-family: 'Times New Roman', Times, serif; margin: 0; padding: 5px 20px 20px 20px; line-height: 1.4; font-size: 13px; }
+            .container { max-width: 7.5in; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-bottom: 4px; }
+            .form-table { border: 0.2px solid #000; border-collapse: collapse; font-size: 13px; }
+            .form-table td { border: 0.2px solid #000; padding: 4px 7px; }
+            .form-label { background: #f0f0f0; font-weight: normal; width: 30px; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+            .letter-body { white-space: normal; }
+            .letter-body p { margin: 8px 0; text-align: justify; }
+            .letter-body u { text-decoration: underline; }
+            .obs-table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; page-break-inside: auto; break-inside: auto; }
+            .obs-table tr { page-break-inside: avoid; break-inside: avoid; }
+            .obs-table th, .obs-table td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; page-break-inside: avoid; break-inside: avoid; }
+            .obs-table th { background: #f0f0f0; font-weight: bold; }
+            .signature { margin-top: 25px; page-break-inside: avoid; break-inside: avoid; }
+            .sig-name { font-weight: bold; text-decoration: underline; margin-top: 35px; }
+            .sig-title { margin-top: 3px; }
+            .received-group { page-break-inside: avoid; break-inside: avoid; page-break-before: avoid; page-break-after: avoid; }
+            .received-by { margin-top: 18px; padding-top: 15px; border-top: 0.3px solid #000; page-break-inside: avoid; break-inside: avoid; }
+            .received-by h4 { margin: 0 0 12px 0; font-weight: bold; font-size: 13px; }
+            .received-table { page-break-inside: avoid; break-inside: avoid; }
+            .received-table td { border: none; padding: 2px 0; vertical-align: bottom; }
+            .received-table .label-cell { width: 200px; padding-right: 10px; }
+            .received-table .colon-cell { width: 20px; }
+            .received-table .line-cell { border-bottom: 1px solid #000; padding-bottom: 2px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <table class="form-table">
+                <tbody>
+                  <tr>
+                    <td class="form-label" rowSpan={3}>FORM</td>
+                    <td style="width: 60px">Code</td>
+                    <td style="width: 100px; text-align: center">FM-PSM-03</td>
+                  </tr>
+                  <tr>
+                    <td>Rev.</td>
+                    <td style="text-align: center">01</td>
+                  </tr>
+                  <tr>
+                    <td>Date</td>
+                    <td style="text-align: center">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-')}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="text-align: right; display: flex; align-items: center; gap: 0; margin-top: -15px">
+                <img src="/logo-DTI.png" alt="DTI Philippines" style="height:95px; object-fit:contain; display:inline-block" onerror="this.style.display='none'" />
+                <img src="/bagongPinas.png" alt="Bagong Pilipinas" style="height:115px; object-fit:contain; display:inline-block" onerror="this.style.display='none'" />
+              </div>
+            </div>
+            ${content}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 400);
+
+    const restoreEdit = () => {
+      window.focus();
+      setTimeout(focusPreview, 50);
+      if (onComplete) onComplete();
+    };
+    printWindow.onafterprint = restoreEdit;
+    printWindow.onbeforeunload = restoreEdit;
+    return printWindow;
+  };
+
   const selectedItems = prices.filter(p => selectedIds.includes(p.id));
 
   return (
@@ -519,14 +677,17 @@ ${commodityRows}
             <span style={tagStyle}>{printedStores.length} letter(s) sent</span>
           </div>
           <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "360px" }}>
+            {/* No inline create banner — automatic save occurs when printing completes */}
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
               <thead>
                 <tr style={{ textAlign: "left", color: "#64748b", fontSize: "0.75rem" }}>
                   <th style={thStyle}>Store</th>
                   <th style={thStyle}>Date Printed</th>
                   <th style={thStyle}>Deadline</th>
-                  <th style={thStyle}>Days Remaining</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Days Remaining</th>
                   <th style={thStyle}>Status</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Responded</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Reprint</th>
                 </tr>
               </thead>
               <tbody>
@@ -567,7 +728,7 @@ ${commodityRows}
                       <td style={tdStyle}>{record.store}</td>
                       <td style={tdStyle}>{dateSent}</td>
                       <td style={tdStyle}>{deadlineDate}</td>
-                      <td style={{ ...tdStyle, fontWeight: "600", color: statusColor }}>{daysLeft >= 0 ? daysLeft : "—"}</td>
+                      <td style={{ ...tdStyle, fontWeight: "600", color: statusColor, textAlign: 'center' }}>{daysLeft >= 0 ? daysLeft : "—"}</td>
                       <td style={tdStyle}>
                         <span style={{ 
                           background: statusBg, 
@@ -579,6 +740,23 @@ ${commodityRows}
                         }}>
                           {statusText}
                         </span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!record.replied}
+                          onChange={(e) => handleToggleReplied(record._id, e.target.checked)}
+                          title="Mark as replied"
+                          aria-label={`Replied ${record.store}`}
+                        />
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleReprint(record.store)}
+                          style={{ ...miniButtonStyle, background: '#0f172a', color: 'white' }}
+                        >
+                          Reprint
+                        </button>
                       </td>
                     </tr>
                   );
@@ -670,7 +848,7 @@ ${commodityRows}
                                       <td style={tdStyle}>{item.size || "--"}</td>
                                       <td style={tdStyle}>{formatCurrency(item.price)}</td>
                                       <td style={tdStyle}>{previousPriceDetail > 0 ? formatCurrency(previousPriceDetail) : "--"}</td>
-                                      <td style={tdStyle}>{formatCurrency(item.srp)}</td>
+                                      <td style={tdStyle}>{Number(item.srp) > 0 ? formatCurrency(item.srp) : "--"}</td>
                                       <td style={{ ...tdStyle, color: varianceColor }}>{formatCurrency(v)}</td>
                                       <td style={{ ...tdStyle, color: changeColor, fontWeight: "600" }}>
                                         {percentChange > 0 ? "+" : ""}{percentChange.toFixed(1)}%
@@ -858,6 +1036,8 @@ ${commodityRows}
           </div>
         </div>
       )}
+
+      {/* Reprint confirmation is handled inline in the tracker rows/banner */}
     </div>
   );
 }
@@ -908,14 +1088,21 @@ const miniButtonStyle = {
 const thStyle = {
   padding: "10px 8px",
   fontWeight: "700",
-  fontSize: "0.75rem"
+  fontSize: "0.75rem",
+  position: "sticky",
+  top: 0,
+  background: "#f8fafc",
+  zIndex: 3
 };
+
 
 const tdStyle = {
   padding: "12px 8px",
   fontSize: "0.9rem",
-  color: "#0f172a"
+  color: "#0f172a",
+  textAlign: 'justify'
 };
+
 
 const tagStyle = {
   background: "#0f172a",
